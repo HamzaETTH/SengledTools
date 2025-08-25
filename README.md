@@ -2,237 +2,239 @@
 
 A comprehensive tool for local control and protocol research of Sengled Wi‑Fi bulbs. It can pair bulbs to your own MQTT broker (no cloud), provides UDP control, and includes firmware flashing capability to install open source firmware like Tasmota since Sengled's cloud servers are no longer functional.
 
-> [!IMPORTANT]
-> The **flashing/jailbreaking process** is based on testing with **W31-N15 and W31-N11** bulbs, which use Sengled's WF863 module (based on ESP8266EX). **Other bulbs appear to use other modules** (like WF864, based on MX1290 chip), which may not work with the flashing process. The basic MQTT/UDP control should work with most Sengled bulbs. We're working on acquiring other bulbs to test/develop with them and will add to this list.
->
-> Currently known working bulbs ✅
-> * W31-N15 (WiFi multi-color LED) - WF863 Module / Espressif ESP8266EX chip
-> * W31-N11 (WiFi multi-color LED) - WF863 Module 
->
-> Currently known NON-working bulbs ❌
-> * W12-N15 (WiFi white LED) - WF864 module / MXCHIP MX1290 chip
-> * W21-N13 and W11-N13 (WiFi multi-color LED) - MXCHIP EMW3091 module / unknown chip
->
-> Check the side of your bulb for FCC ID - it contains the ID of the module (or chip) used inside the bulb, matching one of the above. Post an issue if you find a bulb using a supported module that's not listed!
+## Quick Navigation
 
-## Quick Usage
+- **[Quick Start: The Easy Setup Wizard](#quick-start-the-easy-setup-wizard)** - Zero-config wizard for beginners
+- **[Jailbreaking & Custom Firmware](#jailbreaking--custom-firmware)** - Flash Tasmota/ESPHome
+- **[WiFi Pairing Reference](#wifi-pairing-reference-reverse-engineered)** - Technical pairing details
+- **[Command Reference](#command-reference)** - Complete CLI help and options
+- **[FAQ](#faq)** - Frequently asked questions
+- **[Wi-Fi Setup Sequence](#wi-fi-setup-sequence)** - Technical setup flow
 
-For a fuller, step‑by‑step guide, see [Instructions](INSTRUCTIONS.md).
 
-The tool can perform Wi‑Fi pairing and basic UDP control. The HTTP server used during pairing is now embedded and auto‑managed by the tool.
 
-### Install
+## Quick Start: The Easy Setup Wizard
 
-* Python 3.10+ recommended
-* Install dependencies:
+This is the new version. Use the zero‑config wizard. No external Mosquitto. No OpenSSL. Cross‑platform. The tool automatically generates TLS certificates and runs an embedded MQTT broker.
 
-```
+### Prerequisites
+
+* Install Python 3.10+ and dependencies:
+
+```bash
 pip install -r requirements.txt
 ```
 
-### Wi‑Fi Pairing Steps
+* Connect your computer to the bulb AP `Sengled_Wi‑Fi Bulb_XXXXXX` before pairing.
 
-1. Start your MQTT broker (e.g., Mosquitto). See more information and examples in [INSTRUCTIONS.md](INSTRUCTIONS.md).
+### Step-by-Step Setup
 
-   * Windows example (run terminal as Administrator and ideally `cd` to the project root first):
+1) **Factory Reset the Bulb**: Flick the power switch rapidly 5+ times until the bulb flashes and broadcasts `Sengled_Wi‑Fi Bulb_XXXXXX`
 
-     ```
-      "C:\\Program Files\\mosquitto\\mosquitto.exe" -c .\\mosquitto.conf -v
-     ```
-2. Factory reset the bulb to enter AP mode.
+2) **Connect to Bulb's AP**: Join the `Sengled_Wi‑Fi Bulb_XXXXXX` network from your computer
 
-   * Rapidly toggle power 5 times until it broadcasts `Sengled_Wi‑Fi_Bulb_...`.
-3. Run the Wi‑Fi setup:
+3) **Run the Wizard**:
 
-   * Interactive:
-
-     ```
-      # If --broker-ip is omitted, the tool uses this PC's local IP automatically
-      python sengled_tool.py --setup-wifi
-     ```
-     Connect your computer to the bulb's AP: `Sengled_Wi‑Fi_Bulb_...` when prompted
-   * Non‑interactive:
-
-     Connect your computer to the bulb's AP: `Sengled_Wi‑Fi_Bulb_...` first.
-     ```
-      # If --broker-ip is omitted, the tool uses this PC's local IP automatically
-      python sengled_tool.py --setup-wifi --ssid "YourSSID" --password "YourWifiPassword"
-     ```
-4. If the embedded HTTP server can't bind to 80/8080, stop whatever is on those ports or set `SENGLED_HTTP_PORT`.
-5. The bulb will hit:
-
-   * `POST/GET /life2/device/accessCloud.json`
-   * `POST/GET /jbalancer/new/bimqtt`
-     Then it connects to your MQTT broker.
-
-What happens:
-
-* The tool starts a local HTTP server automatically on port 80 (falls back to 8080 if needed; override with env `SENGLED_HTTP_PORT`).
-* It performs the Wi‑Fi setup handshake with the bulb and sends config that points to your MQTT broker.
-* It waits until the bulb hits both endpoints, then shuts down the HTTP server automatically:
-
-  * `POST/GET /life2/device/accessCloud.json` (returns success JSON)
-  * `POST/GET /jbalancer/new/bimqtt` (returns `{ protocal: "mqtt", host: <broker-ip>, port: 1883 }`)
-* After that, it blinks the bulb via UDP (ON → 3s → OFF) as a quick success indicator.
-
-## MQTT Control
-
-Use these commands after the bulb is paired and connected to your broker. See [MQTT_COMMANDS_REFERENCE.md](MQTT_COMMANDS_REFERENCE.md) for complete details.
-
-<details>
-<summary>Basic Commands</summary>
-
-```
-# Turn on
-python sengled_tool.py --broker-ip 192.168.0.100 --mac E8:DB:8A:AA:BB:CC --on
-
-# Turn off
-python sengled_tool.py --broker-ip 192.168.0.100 --mac E8:DB:8A:AA:BB:CC --off
-
-# Set brightness (0-100)
-python sengled_tool.py --broker-ip 192.168.0.100 --mac E8:DB:8A:AA:BB:CC --brightness 50
-
-# Set color (R G B; 0-255 each)
-python sengled_tool.py --broker-ip 192.168.0.100 --mac E8:DB:8A:AA:BB:CC --color 255 0 0
-
-# Set color temperature (0-100% as 2700-6500K)
-# Note: When changing color temperature, include a switch ON in the same payload (the app does this automatically).
-python sengled_tool.py --broker-ip 192.168.0.100 --mac E8:DB:8A:AA:BB:CC --color-temp 65
-
-# Query status
-python sengled_tool.py --broker-ip 192.168.0.100 --mac E8:DB:8A:AA:BB:CC --status
-
-# Factory reset
-python sengled_tool.py --mac E8:DB:8A:AA:BB:CC --reset
+```bash
+python sengled_tool.py
 ```
 
-</details>
+4) **Follow on‑screen prompts**. The wizard will:
+   - Generate self‑signed TLS certificates automatically
+   - Start an embedded MQTT broker (TLS on 8883)
+   - Handle WiFi setup interactively OR use `--ssid` and `--password` for non-interactive setup
+   - Pair the bulb to your local broker automatically
+   - Detect bulb model and module type for compatibility checking
+   - **Optionally offer firmware flashing** after successful setup (based on detected compatibility). Use `--force-flash` to bypass these checks if you're sure about compatibility.
 
-<details>
-<summary>Advanced Commands</summary>
 
+## Flashing information
+
+It is possible to reflash compatible Sengled bulbs (see compatibility list) with open-source firmware like [Tasmota](https://tasmota.github.io/) or ESPHome. This process permanently breaks the dependency on any cloud servers. The process to download an arbitrary firmware involves using a "shim" app known as Sengled-Rescue, which is located in the sengled-ota folder of the project. A compiled version of Sengled-Rescue is located in shim.bin of the main project.
+
+Once you’ve completed Wi-Fi pairing and confirmed that sengled_tool.py can communicate with the bulb (sending basic on/off commands), the script will prompt you to flash the firmware.
+
+It will basically run the --upgrade option to install Sengled-Rescue:
 ```
-# Custom payload (JSON array of command objects)
-# Example: turn on via raw publish
-python sengled_tool.py --broker-ip 192.168.0.100 --mac E8:DB:8A:AA:BB:CC \
-  --custom-payload "[{\"dn\":\"E8:DB:8A:AA:BB:CC\",\"type\":\"switch\",\"value\":\"1\",\"time\":1690000000000}]"
-
-# Custom publish (raw topic/payload)
-python sengled_tool.py --broker-ip 192.168.0.100 --mac E8:DB:8A:AA:BB:CC \
-  --topic wifielement/E8:DB:8A:AA:BB:CC/update \
-  --payload "[{\"dn\":\"E8:DB:8A:AA:BB:CC\",\"type\":\"switch\",\"value\":\"1\",\"time\":1690000000000}]"
-
-# Firmware upgrade (Sengled-Rescue path, flashes shim to let you run your own firmware)
-# ⚠️ This is a one-way trip! The *.bin you flash *MUST* be compatible with ESP RTOS SDK bootloader, launching from an OTA
-# partition (unpredictably either ota_0 or ota_1, so you don't know where it will land at the time of update).
-# See sengled_ota/README.md for details.
-# A working shim.bin is included - a compiled copy of Sengled-Rescue - that lets you flash any firmware.
-python sengled_tool.py --broker-ip 192.168.0.100 --mac E8:DB:8A:AA:BB:CC \
-  --upgrade shim.bin
-
-# Group control (example: switch ON for a list of MACs)
-python sengled_tool.py --broker-ip 192.168.0.100 \
-  --group-macs E8:DB:8A:AA:BB:CC E8:DB:8A:11:22:33 \
-  --group-switch on
+python sengled_tool.py --mac E8:DB:8A:AA:BB:CC --upgrade "shim.bin"
 ```
 
-</details>
 
-## UDP Control
 
-Direct local commands that don't require the MQTT broker or HTTP setup server once the bulb is paired and on your network. See [UDP_COMMANDS_REFERENCE.md](references/UDP_COMMANDS_REFERENCE.md) for complete details.
+The **flashing/jailbreaking process** is based on testing with **W31-N15 and W31-N11** bulbs, which use Sengled's WF863 module (based on ESP8266EX). **Other bulbs appear to use other modules** (like WF864, based on MX1290 chip), which may not work with the flashing process. The basic MQTT/UDP control should work with most Sengled bulbs. We're working on acquiring other bulbs to test/develop with them and will add to this list.
 
-<details>
-<summary>Basic UDP Commands</summary>
+### Currently Known Working Bulbs ✅
 
+* **W31-N15** (WiFi multi-color LED) - WF863 Module / Espressif ESP8266EX chip
+* **W31-N11** (WiFi multi-color LED) - WF863 Module
+
+### Currently Known NON-Working Bulbs ❌
+
+* **W12-N15** (WiFi white LED) - WF864 module / MXCHIP MX1290 chip
+* **W21-N13** and **W11-N13** (WiFi multi-color LED) - MXCHIP EMW3091 module / unknown chip
+
+
+> **Tip:** Check the side of your bulb for FCC ID - it contains the ID of the module (or chip) used inside the bulb, matching one of the above. Post an issue if you find a bulb using a supported module that's not listed!
+
+
+---
+
+
+
+### Tasmota Templates
+
+When flashing Tasmota firmware to your Sengled bulbs, use these device templates:
+
+#### W31-N15 (RGBW Bulb)
+
+```json
+{"NAME":"Sengled RGBW","GPIO":[0,0,0,0,0,0,0,0,417,416,419,418,0,0],"FLAG":0,"BASE":18}
 ```
-# Replace <bulb-ip> with the bulb's IP
 
-# Turn on
-python sengled_tool.py --ip <bulb-ip> --udp-on
+**Reference:** [Sengled W31-N15 Template](https://templates.blakadder.com/sengled_W31-N15.html)
 
-# Turn off
-python sengled_tool.py --ip <bulb-ip> --udp-off
+#### W31-N11 (White Bulb)
 
-# Set brightness (0-100)
-python sengled_tool.py --ip <bulb-ip> --udp-brightness 50
-
-# Set color (R G B; 0-255 each)
-python sengled_tool.py --ip <bulb-ip> --udp-color 255 0 0
+```json
+{"NAME":"Sengled W31-N11","GPIO":[0,0,0,0,416,0,0,0,0,0,0,0,0,0],"FLAG":0,"BASE":18}
 ```
 
-**Note:** There might be more UDP commands available. Check [UDP_COMMANDS_REFERENCE.md](UDP_COMMANDS_REFERENCE.md) for the complete list of documented commands.
+These templates configure the correct GPIO pins for PWM control of the LED channels.
+
+
+### Tasmota PWM Cheatsheet
+
+Quick PWM commands for brightness control in the Tasmota console (for Sengled W31-N11):
+
+- **Off:** `PWM1 0`
+- **25%:** `PWM1 256`
+- **50%:** `PWM1 512`
+- **100%:** `PWM1 1023`
 
 
 
-</details>
+## Command Reference
 
-## Troubleshooting
+### Help Output
 
-See the consolidated guide in Instructions: [INSTRUCTIONS.md — Troubleshooting](INSTRUCTIONS.md#troubleshooting).
+```bash
+python sengled_tool.py --help
+```
+
+**Usage:** For simple usage, simply run the tool without arguments.
+```
+usage: sengled_tool.py [-h] [--setup-wifi] [--broker-ip BROKER_IP] [--broker-port BROKER_PORT]
+                       [--ca-crt CA_CRT] [--server-crt SERVER_CRT] [--server-key SERVER_KEY] [--ssid SSID]
+                       [--password PASSWORD] [--embedded] [--regen-certs] [--status] [--mac MAC] [--on]   
+                       [--off] [--toggle] [--brightness BRIGHTNESS] [--color R G B]
+                       [--color-temp COLOR_TEMP] [--reset] [--custom-payload CUSTOM_PAYLOAD]
+                       [--upgrade UPGRADE] [--group-macs GROUP_MACS [GROUP_MACS ...]]
+                       [--group-switch {on,off}] [--group-brightness GROUP_BRIGHTNESS]
+                       [--group-color-temp GROUP_COLOR_TEMP] [--gradient-time GRADIENT_TIME]
+                       [--effect-status EFFECT_STATUS] [--ip IP] [--udp-on] [--udp-off]
+                       [--udp-brightness UDP_BRIGHTNESS] [--udp-color R G B] [--udp-json UDP_JSON]
+                       [--topic TOPIC] [--payload PAYLOAD] [--force-flash] [--run-http-server]
+                       [--run-servers] [--http-port HTTP_PORT] [--http-server-ip HTTP_SERVER_IP]
+                       [--verbose]
+
+Sengled Local Control Tool
+
+options:
+  -h, --help            show this help message and exit
+  --setup-wifi          Start interactive Wi-Fi setup.
+  --broker-ip BROKER_IP
+                        IP address of your MQTT broker (defaults to this PC's local IP if omitted).
+  --broker-port BROKER_PORT
+                        MQTT broker port (default: 8883).
+  --ca-crt CA_CRT       Path to CA certificate (default: ca.crt)
+  --server-crt SERVER_CRT
+                        Path to server certificate (default: server.crt)
+  --server-key SERVER_KEY
+                        Path to server private key (default: server.key)
+  --ssid SSID           Wi-Fi SSID for non-interactive setup.
+  --password PASSWORD   Wi-Fi password for non-interactive setup.
+  --embedded            Force control publishes to 127.0.0.1:8883 (embedded broker). Not used for Wi-Fi setu
+p.
+  --regen-certs         Force regeneration of TLS certificates in the unified location.
+  --status              Send status command (no payload)
+  --force-flash         Allow flashing even if model/module is not recognized as supported.
+  --run-http-server     Run the Sengled local server only (for firmware update testing).
+  --run-servers         Start embedded MQTT broker and HTTP server for bulb control.
+  --http-port HTTP_PORT
+                        HTTP server port (default: 8080).
+  --http-server-ip HTTP_SERVER_IP
+                        IP/host to embed in HTTP URLs sent to the bulb (defaults to LAN IP).
+  --verbose             Show debug + error logs
+
+Bulb Control (MQTT):
+  --mac MAC             MAC address of the bulb to control.
+  --on                  Turn the bulb on.
+  --off                 Turn the bulb off.
+  --toggle              Toggle the bulb's power state.
+  --brightness BRIGHTNESS
+                        Set brightness (0-100).
+  --color R G B         Set color (0-255 for each).
+  --color-temp COLOR_TEMP
+                        Set color temperature (0-100 percent; 0=2700K, 100=6500K).
+  --reset               Reset the bulb.
+  --upgrade UPGRADE     Send firmware upgrade command with URL.
+  --custom-payload CUSTOM_PAYLOAD
+                        Send custom JSON payload to bulb.
+  --topic TOPIC         Custom MQTT topic to publish to.
+  --payload PAYLOAD     Custom payload to send (raw string, not JSON).
+
+
+UDP Control (Local Network):
+  --ip IP               IP address of the bulb for UDP control.
+  --udp-on              Turn the bulb on via UDP.
+  --udp-off             Turn the bulb off via UDP.
+  --udp-brightness UDP_BRIGHTNESS
+                        Set brightness via UDP (0-100).
+  --udp-color R G B     Set color via UDP (0-255 for each).
+  --udp-json UDP_JSON   Send a custom JSON payload via UDP.
+
+⚠️ Untested Commands :
+  --group-macs GROUP_MACS [GROUP_MACS ...]
+                        List of MAC addresses for group control.
+  --group-switch {on,off}
+                        Control multiple bulbs on/off.
+  --group-brightness GROUP_BRIGHTNESS
+                        Set brightness for multiple bulbs (0-100).
+  --group-color-temp GROUP_COLOR_TEMP
+                        Set color temperature for multiple bulbs.
+  --gradient-time GRADIENT_TIME
+                        Transition time for group commands (default: 10).
+  --effect-status EFFECT_STATUS
+                        Set effect status (0=off, 7=audio sync, 100=video sync, 101=game sync).
+```
+
 
 ## FAQ
 
 <details>
 <summary>How do I use this with Home Assistant?</summary>
 
-**Yes, but only if custom firmware (like Tasmota) is used.** This repo does not include a Home Assistant integration, but it's possible to create one fairly easily using the documented MQTT topics and payloads. However, the MQTT broker will need to be running, or UDP commands will need to be used. **For easier usage, it's better to flash the firmware with Tasmota.**
+**Yes, but only if custom firmware (like Tasmota) is used.** 
 
 </details>
 
 <details>
 <summary>Will this make my bulbs work with Google Home?</summary>
 
-* If a bulb was already paired with Sengled cloud, it should continue to work with Google Home as before. You can still control it locally via UDP.
-* Bulbs newly paired with this tool are redirected to your local broker and do not register with Sengled cloud; they will not work with the official Sengled Google Home integration.
-* **However, if you use Home Assistant, you can integrate with Google Home through Home Assistant's Google Assistant integration.**
-
+* **Yes, with Home Assistant:** You can integrate with Google Home through Home Assistant's Google Assistant integration.
 </details>
 
 <details>
 <summary>I don't use Home Assistant. Can I still control bulbs?</summary>
 
-**Yes, with the documented MQTT and UDP commands.** For easier usage, it's recommended to use webhooks, automation scripts, or create a simple control interface. Options include: a small Android app, a simple script/service on a PC or server triggered by your phone (shortcuts/webhooks), or any automation that publishes the documented MQTT or UDP commands.
+**Yes, with the documented MQTT and UDP commands.** For advanced users yes, you can use webhooks, automation scripts, or create a simple control interface. Options include: a small Android app, a simple script/service on a PC or server triggered by your phone (shortcuts/webhooks), or any automation that publishes the documented MQTT or UDP commands. The two servers (MQTT and HTTP) are necessary.
 
 </details>
 
 ## Wi-Fi Setup Sequence
 
-The following diagram shows the local AP-mode pairing flow: what the tool sends to the bulb, what the bulb fetches from your local HTTP server, and how it connects to your MQTT broker. This matches the actual behavior in `sengled_tool.py` and the documented endpoints.
+The Wi-Fi pairing process follows a specific sequence of UDP commands and HTTP requests. See [WIFI_PAIRING_REFERENCE.md](docs/examples/WIFI_PAIRING_REFERENCE.md) for the complete sequence diagram and technical details.
 
-```mermaid
-sequenceDiagram
-    participant UserPC as "User PC"
-    participant SetupTool as "Setup Tool"
-    participant BulbAP as "Bulb (AP 192.168.8.1:9080)"
-    participant HttpServer as "Local HTTP Setup Server"
-    participant MqttBroker as "MQTT Broker (<broker-ip>)"
+## Next Steps
 
-    UserPC->>SetupTool: "Run --setup-wifi (--ssid --password)"
-    SetupTool->>HttpServer: "Start server (port 80 → 8080 fallback)"
-    SetupTool->>BulbAP: "UDP startConfigRequest"
-    BulbAP-->>SetupTool: "Handshake + MAC"
-
-    opt "Interactive scan"
-        SetupTool->>BulbAP: "scanWifiRequest"
-        BulbAP-->>SetupTool: "scan in progress"
-        SetupTool->>BulbAP: "getAPListRequest"
-        BulbAP-->>SetupTool: "routers list"
-    end
-
-    SetupTool->>BulbAP: "UDP startConfigRequest (prep)"
-    BulbAP-->>SetupTool: "result:true"
-    SetupTool->>BulbAP: "setParamsRequest [RC4+Base64 encrypted]"
-    Note right of SetupTool: "Includes appServerDomain and jbalancerDomain URLs\n+ Wi‑Fi SSID/password (or BSSID)"
-    Note over SetupTool,BulbAP: Payload is RC4-encrypted and then base64-encoded (see KEY_STR in code)
-    BulbAP-->>SetupTool: "ack"
-    SetupTool->>BulbAP: "endConfigRequest"
-
-    BulbAP->>HttpServer: "POST /life2/device/accessCloud.json"
-    HttpServer-->>BulbAP: '{"success": true, "messageCode": "200"}'
-    BulbAP->>HttpServer: "POST /jbalancer/new/bimqtt"
-    HttpServer-->>BulbAP: '{"protocal":"mqtt","host":"<broker-ip>","port":1883}'
-
-    BulbAP->>MqttBroker: "Connect"
-    MqttBroker-->>BulbAP: "ConnAck / ready"
-```
+For detailed troubleshooting and advanced usage, see [Advanced Instructions](docs/examples/INSTRUCTIONS_ADVANCED.md).

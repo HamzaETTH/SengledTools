@@ -9,6 +9,9 @@ import base64
 import json
 
 # --- RC4 Crypto for Local Wi-Fi Setup ---
+# Note: RC4 is used because it's what the Sengled app uses
+# This is NOT cryptographically secure - it's just for protocol compatibility
+# The key is hardcoded in the app and provides no real security
 KEY_STR = "MTlCaWppbmdTaGFuZ2hhaVdpU2VuZ2xlZEZpMjBBQUJBU0U2NA=="  # literal string used by the app
 
 class SengledWiFiCrypto:
@@ -50,17 +53,14 @@ class SengledWiFiCrypto:
     
     def _rc4_crypt(self, data, key):
         """RC4 encryption/decryption (same operation)"""
-        # Initialize S array
         S = list(range(256))
         j = 0
         key_len = len(key)
         
-        # Key scheduling
         for i in range(256):
             j = (j + S[i] + key[i % key_len]) % 256
             S[i], S[j] = S[j], S[i]
         
-        # Pseudo-random generation and encryption
         i = j = 0
         out = bytearray()
         for byte in data:
@@ -72,7 +72,6 @@ class SengledWiFiCrypto:
         
         return bytes(out)
 
-# Convenience functions for direct use
 def encrypt_wifi_payload(data):
     """Encrypt Wi-Fi setup payload using RC4"""
     crypto = SengledWiFiCrypto()
@@ -83,7 +82,6 @@ def decrypt_wifi_payload(b64_str):
     crypto = SengledWiFiCrypto()
     return crypto.decrypt_wifi_payload(b64_str)
 
-# Export main class and key constants
 __all__ = [
     'SengledWiFiCrypto', 
     'encrypt_wifi_payload', 

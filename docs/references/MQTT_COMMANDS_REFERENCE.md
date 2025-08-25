@@ -44,8 +44,8 @@ python sengled_tool.py --mac E8:DB:84:F9:BE:B4 --color 255 255 0  # Yellow
 python sengled_tool.py --mac E8:DB:84:F9:BE:B4 --color 255 0 255  # Magenta
 python sengled_tool.py --mac E8:DB:84:F9:BE:B4 --color 0 255 255  # Cyan
 
-# Set color temperature (2700-6500K)
-python sengled_tool.py --mac E8:DB:84:F9:BE:B4 --color-temp 2700
+# Set color temperature (0-100 percent; 0=2700K, 100=6500K)
+python sengled_tool.py --mac E8:DB:84:F9:BE:B4 --color-temp 50
 
 # Set color mode (1=RGB, 2=white/temperature)
 python sengled_tool.py --mac E8:DB:84:F9:BE:B4 --color-mode 1
@@ -224,10 +224,8 @@ python sengled_tool.py --help | grep -A 10 "UDP Control"
 }
 ```
 
-**Color Temperature Ranges:**
-- Warm White: `"2700"` (2700K)
-- Cool White: `"6500"` (6500K)
-- Daylight: `"5500"` (5500K)
+**Color Temperature Values:**
+- Values used in examples: `"2700"`, `"6500"`, `"5500"`
 
 ### **White Presets (App mapping)**
 

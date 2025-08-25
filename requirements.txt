@@ -1,2 +1,4 @@
 paho-mqtt
-getmac
+psutil
+amqtt
+cryptography
