@@ -33,7 +33,13 @@ cd SengledTools
 
 **Step 4:** Install Python dependencies:
 ```bash
-pip install -r requirements.txt
+# Linux/macOS
+python3 -m pip install -r requirements.txt
+
+# Windows (prefer Python Launcher; plain 'python' also works if it's Python 3)
+py -3 -m pip install -r requirements.txt
+:: or
+python -m pip install -r requirements.txt
 ```
 
 **Step 5:** Power on bulb and connect your computer to the bulb AP `Sengled_Wi‑Fi Bulb_XXXXXX`
@@ -47,6 +53,12 @@ pip install -r requirements.txt
 3) **Run the Wizard**:
 
 ```bash
+# Linux/macOS
+python3 sengled_tool.py
+
+# Windows (prefer Python Launcher; plain 'python' also works if it's Python 3)
+py -3 sengled_tool.py
+:: or
 python sengled_tool.py
 ```
 
@@ -137,6 +149,12 @@ Quick PWM commands for brightness control in the Tasmota console (for Sengled W3
 ### Help Output
 
 ```bash
+# Linux/macOS
+python3 sengled_tool.py --help
+
+# Windows (prefer Python Launcher; plain 'python' also works if it's Python 3)
+py -3 sengled_tool.py --help
+:: or
 python sengled_tool.py --help
 ```
 

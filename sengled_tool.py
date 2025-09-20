@@ -57,15 +57,30 @@ from sengled.constants import BULB_IP, BULB_PORT, DEFAULT_BROKER_PORT
 from sengled.command_handler import CommandHandler
 
 
+def _invocation_cmd() -> str:
+    """Return the correct Python invocation for the user's OS.
+
+    - Windows: prefer "py -3" if available, fallback to "python"
+    - Unix-like: use "python3"
+    """
+    try:
+        # os.name is 'nt' on Windows
+        if os.name == "nt":
+            return "py -3" if shutil.which("py") else "python"
+        return "python3"
+    except Exception:
+        # Safe fallback
+        return "python3"
+
 def _print_post_pairing_summary(bulb_mac: str, udp_target_ip: Optional[str]):
     section("Pairing Setup Complete")
     info("")
     info("You should now be able to control the bulb with UDP/MQTT commands in another terminal")
     subsection("Examples:")
     if udp_target_ip:
-        cmd(f"python sengled_tool.py --ip {udp_target_ip} --udp-on", extra_indent=4)
-    cmd(f"python sengled_tool.py --mac {bulb_mac} --on", extra_indent=4)
-    cmd(f"python sengled_tool.py --mac {bulb_mac} --reset", extra_indent=4)
+        cmd(f"{_invocation_cmd()} sengled_tool.py --ip {udp_target_ip} --udp-on", extra_indent=4)
+    cmd(f"{_invocation_cmd()} sengled_tool.py --mac {bulb_mac} --on", extra_indent=4)
+    cmd(f"{_invocation_cmd()} sengled_tool.py --mac {bulb_mac} --reset", extra_indent=4)
     
     success("HTTP server ready for firmware updates")
 
@@ -78,23 +93,23 @@ def _print_final_summary_and_hold(bulb_mac: str, udp_target_ip: Optional[str]):
         "You can control the bulb as long as the script is running, "
         "if stopped you can resume control with:"
     )
-    cmd("python sengled_tool.py --run-servers (and wait for up to a minute for the bulb to reconnect)")
+    cmd(f"{_invocation_cmd()} sengled_tool.py --run-servers (and wait for up to a minute for the bulb to reconnect)")
     info("")
 
     subsection("Example Commands")
     if udp_target_ip:
-        cmd(f"UDP OFF:         python sengled_tool.py --ip {udp_target_ip} --udp-off")
-        cmd(f"UDP ON:          python sengled_tool.py --ip {udp_target_ip} --udp-on")
-        cmd(f"UDP BRIGHTNESS:  python sengled_tool.py --ip {udp_target_ip} --udp-brightness 50")
-        cmd(f"UDP COLOR:       python sengled_tool.py --ip {udp_target_ip} --udp-color 255 0 0")
+        cmd(f"UDP OFF:         {_invocation_cmd()} sengled_tool.py --ip {udp_target_ip} --udp-off")
+        cmd(f"UDP ON:          {_invocation_cmd()} sengled_tool.py --ip {udp_target_ip} --udp-on")
+        cmd(f"UDP BRIGHTNESS:  {_invocation_cmd()} sengled_tool.py --ip {udp_target_ip} --udp-brightness 50")
+        cmd(f"UDP COLOR:       {_invocation_cmd()} sengled_tool.py --ip {udp_target_ip} --udp-color 255 0 0")
         info("")
 
-    cmd(f"MQTT ON:         python sengled_tool.py --mac {bulb_mac} --on")
-    cmd(f"MQTT OFF:        python sengled_tool.py --mac {bulb_mac} --off")
-    cmd(f"MQTT BRIGHTNESS: python sengled_tool.py --mac {bulb_mac} --brightness 50")
-    cmd(f"MQTT COLOR:      python sengled_tool.py --mac {bulb_mac} --color 255 0 0")
-    cmd(f"MQTT COLOR-TEMP: python sengled_tool.py --mac {bulb_mac} --color-temp 50")
-    cmd(f"MQTT RESET:      python sengled_tool.py --mac {bulb_mac} --reset")
+    cmd(f"MQTT ON:         {_invocation_cmd()} sengled_tool.py --mac {bulb_mac} --on")
+    cmd(f"MQTT OFF:        {_invocation_cmd()} sengled_tool.py --mac {bulb_mac} --off")
+    cmd(f"MQTT BRIGHTNESS: {_invocation_cmd()} sengled_tool.py --mac {bulb_mac} --brightness 50")
+    cmd(f"MQTT COLOR:      {_invocation_cmd()} sengled_tool.py --mac {bulb_mac} --color 255 0 0")
+    cmd(f"MQTT COLOR-TEMP: {_invocation_cmd()} sengled_tool.py --mac {bulb_mac} --color-temp 50")
+    cmd(f"MQTT RESET:      {_invocation_cmd()} sengled_tool.py --mac {bulb_mac} --reset")
     info("")
 
     try:
@@ -667,4 +682,7 @@ def main():
 
 
 if __name__ == "__main__":
+    if sys.version_info < (3, 8):
+        print("This tool requires Python 3.8+. On Linux/macOS run with 'python3'. On Windows use 'py -3' or ensure 'python' is Python 3.")
+        sys.exit(1)
     main()
