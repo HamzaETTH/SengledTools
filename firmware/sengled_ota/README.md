@@ -186,7 +186,7 @@ You can (soft-)brick devices if you flash the wrong thing to the wrong place, re
 
 ## One-page “how to ship”
 
-1. Build `app2` → get your `.bin`. The most recent version is already compiled for you in **SengledTools** as `shim.bin` .
+1. Build `app2` → get your `.bin`. The most recent version is already compiled for you in **SengledTools** as `firmware/shim.bin`.
 2. Use **SengledTools** to upload Sengled-Rescue into the inactive OTA slot.
 3. Connect to `Sengled-Rescue` AP → open `http://192.168.4.1/`.
 4. **Backup full**.

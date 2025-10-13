@@ -61,13 +61,13 @@ python sengled_tool.py
 
 ## Flashing information
 
-It is possible to reflash compatible Sengled bulbs (see compatibility list) with open-source firmware like [Tasmota](https://tasmota.github.io/) or ESPHome. This process permanently breaks the dependency on any cloud servers. The process to download an arbitrary firmware involves using a "shim" app known as Sengled-Rescue, which is located in the sengled-ota folder of the project. A compiled version of Sengled-Rescue is located in shim.bin of the main project.
+It is possible to reflash compatible Sengled bulbs (see compatibility list) with open-source firmware like [Tasmota](https://tasmota.github.io/) or ESPHome. This process permanently breaks the dependency on any cloud servers. The process to download an arbitrary firmware involves using a "shim" app known as Sengled-Rescue, which is located in the sengled-ota folder of the project. A compiled version of Sengled-Rescue is located at `firmware/shim.bin`.
 
 Once you’ve completed Wi-Fi pairing and confirmed that sengled_tool.py can communicate with the bulb (sending basic on/off commands), the script will prompt you to flash the firmware.
 
 It will basically run the --upgrade option to install Sengled-Rescue:
 ```
-python sengled_tool.py --mac E8:DB:8A:AA:BB:CC --upgrade "shim.bin"
+python sengled_tool.py --mac E8:DB:8A:AA:BB:CC --upgrade "firmware/shim.bin"
 ```
 
 The script will print some scary warning messages to make sure you are prepared for the upgrade. At this time, download and unzip the [Tasmota OTA bin firmware](https://ota.tasmota.com/tasmota/release/) or compile one for ESPHome. For basic usage of the setup_tool script, proceed with the default firmware path. Once the bulb has accepted the shim, the script will finish, but **you're not done yet**.
