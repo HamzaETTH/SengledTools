@@ -80,7 +80,14 @@ def run_firmware_upgrade(args, bulb_mac: str, setup_server, client) -> bool:
     from sengled.utils import get_current_epoch_ms
 
     print_upgrade_safety_warning()
-    default_fw = "firmware/shim.bin"
+    # Resolve a robust default firmware path independent of CWD
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(script_dir, os.pardir))
+    candidate_paths = [
+        os.path.join(repo_root, "firmware", "shim.bin"),  # canonical location
+        os.path.join(script_dir, "shim.bin"),               # fallback if copied already
+    ]
+    default_fw = next((p for p in candidate_paths if os.path.isfile(p)), candidate_paths[0])
     
     use_default = input(f"Use default firmware path ({default_fw})? (Y)es or (n)o to enter custom path: ").strip().lower()
     
