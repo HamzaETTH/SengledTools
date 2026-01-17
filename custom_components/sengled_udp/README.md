@@ -4,4 +4,4 @@ This is a Home Assistant custom integration that controls Sengled Wi-Fi bulbs di
 
 Setup: copy this folder into your Home Assistant `config/custom_components/sengled_udp`, restart Home Assistant, then add the "Sengled UDP" integration and enter the bulb IP (and optional name). The bulb must be reachable on UDP port 9080 from Home Assistant.
 
-Notes: this integration talks to the bulb directly; it does not use MQTT and does not pair the bulb for you. Use the main tool in this repo to get the bulb on Wi-Fi first. UDP control is more limited than MQTT (no scenes, effects, or advanced device commands).
+Notes: this integration talks to the bulb directly; it does not use MQTT and does not pair the bulb for you.
