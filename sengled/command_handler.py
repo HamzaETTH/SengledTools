@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from .log import warn, info, step, debug, say, success
+from .log import warn, info, step, debug, say, success, result
 from .mqtt_client import (
     MQTTClient,
     send_update_command,
@@ -66,52 +66,136 @@ class CommandHandler:
         """Handle UDP commands for direct bulb control."""
         if self.args.udp_on:
             payload = {"func": "set_device_switch", "param": {"switch": 1}}
-            send_udp_command(self.args.ip, payload)
+            response = send_udp_command(self.args.ip, payload)
+            if response:
+                result(json.dumps(response, indent=2))
         elif self.args.udp_off:
             payload = {"func": "set_device_switch", "param": {"switch": 0}}
-            send_udp_command(self.args.ip, payload)
-        elif self.args.udp_brightness is not None:
-            if 0 <= self.args.udp_brightness <= 100:
+            response = send_udp_command(self.args.ip, payload)
+            if response:
+                result(json.dumps(response, indent=2))
+        elif self.args.udp_set_brightness is not None:
+            if 0 <= self.args.udp_set_brightness <= 100:
                 payload = {
                     "func": "set_device_brightness",
-                    "param": {"brightness": self.args.udp_brightness},
+                    "param": {"brightness": self.args.udp_set_brightness},
                 }
-                send_udp_command(self.args.ip, payload)
+                response = send_udp_command(self.args.ip, payload)
+                if response:
+                    result(json.dumps(response, indent=2))
             else:
                 warn("Brightness must be between 0 and 100")
                 sys.exit(2)
-        elif self.args.udp_color:
+        elif self.args.udp_get_brightness:
+            payload = {"func": "get_device_brightness", "param": {}}
+            response = send_udp_command(self.args.ip, payload)
+            if response:
+                result(json.dumps(response, indent=2))
+        elif self.args.udp_set_color:
             try:
-                r, g, b = self.args.udp_color
+                r, g, b = self.args.udp_set_color
                 r, g, b = int(r), int(g), int(b)
                 if all(0 <= val <= 255 for val in [r, g, b]):
                     payload = {"func": "set_device_color", "param": {"red": r, "green": g, "blue": b}}
-                    send_udp_command(self.args.ip, payload)
+                    response = send_udp_command(self.args.ip, payload)
+                    if response:
+                        result(json.dumps(response, indent=2))
                 else:
                     warn("Color values must be between 0 and 255")
                     sys.exit(2)
             except ValueError as ve:
                 warn(
-                    f"Could not convert input to integer for --udp-color: {self.args.udp_color}. Exception: {ve}"
+                    f"Could not convert input to integer for --udp-set-color: {self.args.udp_set_color}. Exception: {ve}"
                 )
                 sys.exit(2)
             except TypeError as te:
-                warn(f"TypeError: Bad type in color arguments {self.args.udp_color}: {te}")
+                warn(f"TypeError: Bad type in color arguments {self.args.udp_set_color}: {te}")
                 sys.exit(2)
+        elif self.args.udp_get_adc:
+            payload = {"func": "get_device_adc", "param": {}}
+            response = send_udp_command(self.args.ip, payload)
+            if response:
+                result(json.dumps(response, indent=2))
+        elif self.args.udp_get_mac:
+            payload = {"func": "get_device_mac", "param": {}}
+            response = send_udp_command(self.args.ip, payload)
+            if response:
+                result(json.dumps(response, indent=2))
+        elif self.args.udp_set_factory_mode:
+            payload = {"func": "set_factory_mode", "param": {}}
+            response = send_udp_command(self.args.ip, payload)
+            if response:
+                result(json.dumps(response, indent=2))
+        elif self.args.udp_get_factory_mode:
+            payload = {"func": "get_factory_mode", "param": {}}
+            response = send_udp_command(self.args.ip, payload)
+            if response:
+                result(json.dumps(response, indent=2))
+        elif self.args.udp_get_software_version:
+            payload = {"func": "get_software_version", "param": {}}
+            response = send_udp_command(self.args.ip, payload)
+            if response:
+                result(json.dumps(response, indent=2))
+        elif self.args.udp_set_colortemp is not None:
+            if 0 <= self.args.udp_set_colortemp <= 100:
+                payload = {"func": "set_device_colortemp", "param": {"colorTemperature": self.args.udp_set_colortemp}}
+                response = send_udp_command(self.args.ip, payload)
+                if response:
+                    result(json.dumps(response, indent=2))
+            else:
+                warn("Color temperature must be between 0 and 100")
+                sys.exit(2)
+        elif self.args.udp_set_pwm:
+            try:
+                r, g, b, w = self.args.udp_set_pwm
+                r, g, b, w = int(r), int(g), int(b), int(w)
+                if all(0 <= val <= 255 for val in [r, g, b, w]):
+                    payload = {"func": "set_device_pwm", "param": {"r": r, "g": g, "b": b, "w": w}}
+                    response = send_udp_command(self.args.ip, payload)
+                    if response:
+                        result(json.dumps(response, indent=2))
+                else:
+                    warn("PWM values must be between 0 and 255")
+                    sys.exit(2)
+            except ValueError as ve:
+                warn(
+                    f"Could not convert input to integer for --udp-set-pwm: {self.args.udp_set_pwm}. Exception: {ve}"
+                )
+                sys.exit(2)
+            except TypeError as te:
+                warn(f"TypeError: Bad type in PWM arguments {self.args.udp_set_pwm}: {te}")
+                sys.exit(2)
+        elif self.args.udp_search_devices:
+            payload = {"func": "search_devices", "param": {}}
+            response = send_udp_command(self.args.ip, payload)
+            if response:
+                result(json.dumps(response, indent=2))
+        elif self.args.udp_reboot:
+            payload = {"func": "reboot", "param": {}}
+            response = send_udp_command(self.args.ip, payload)
+            if response:
+                result(json.dumps(response, indent=2))
+        elif self.args.udp_factory_reset:
+            payload = {"func": "factory_reset", "param": {}}
+            response = send_udp_command(self.args.ip, payload)
+            if response:
+                result(json.dumps(response, indent=2))
         elif self.args.udp_json:
             try:
-                custom = json.loads(self.args.udp_json)
+                custom = self.args.udp_json
                 if not isinstance(custom, dict):
                     warn("--udp-json must be a JSON object")
                     sys.exit(2)
                 else:
-                    send_udp_command(self.args.ip, custom)
+                    response = send_udp_command(self.args.ip, custom)
+                    if response:
+                        result(json.dumps(response, indent=2))
             except json.JSONDecodeError:
                 warn("Invalid JSON for --udp-json")
                 sys.exit(2)
         else:
             warn(
-                "--ip requires a UDP command (--udp-on, --udp-off, --udp-brightness, --udp-color, or --udp-json)"
+                "--ip requires a UDP command (--udp-on, --udp-off, --udp-set-brightness, --udp-get-brightness, --udp-set-color, --udp-get-adc, --udp-get-mac, --udp-set-factory-mode, --udp-get-factory-mode, --udp-get-software-version, --udp-set-colortemp, --udp-set-pwm, --udp-search-devices, --udp-reboot, --udp-factory-reset, or --udp-json)"
             )
             sys.exit(2)
 

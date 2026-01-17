@@ -4,7 +4,7 @@ A comprehensive tool for local control and protocol research of Sengled Wi‑Fi 
 
 ## Quick Navigation
 
-- **[Quick Start: The Easy Setup Wizard](#quick-start-the-easy-setup-wizard)** - Zero-config wizard for beginners
+- **[Quick Start](#quick-start)** - Easiest setup for most users
 - **[Factory Reset Procedures](docs/RESET_PROCEDURES.md)** - Visual reset steps for devices
 - **[Flashing Information](#flashing-information)** - Flash Tasmota/ESPHome
 - **[Command Reference](#command-reference)** - Complete CLI help and options
@@ -13,50 +13,27 @@ A comprehensive tool for local control and protocol research of Sengled Wi‑Fi 
 - **[Advanced Instructions](docs/INSTRUCTIONS_ADVANCED.md)** - Detailed troubleshooting and advanced usage
 
 
-## Quick Start: The Easy Setup Wizard
+## Quick Start
 
-This is the new version. Use the zero‑config wizard. No external Mosquitto. No OpenSSL. Cross‑platform. The tool automatically generates TLS certificates and runs an embedded MQTT broker.
+### 1. Prepare the Bulb
+1. **Factory Reset the Bulb**: Flick the power switch rapidly 5+ times until the bulb flashes. See [Factory Reset Procedures](docs/RESET_PROCEDURES.md) for details.
+2. **Connect to Bulb's AP**: Join the `Sengled_Wi‑Fi Bulb_XXXXXX` Wi-Fi network from your computer.
 
-### Prerequisites
+### 2. Launch the Wizard
 
-**Step 1:** Install Python 3.10 or newer from [https://www.python.org/downloads/](https://www.python.org/downloads/)
+#### Windows
+1. Install Python 3.10+ from [python.org](https://www.python.org/downloads/)
+2. Clone the repo: `git clone https://github.com/HamzaETTH/SengledTools.git`
+3. Double-click `setup_windows.bat` (first time only).
+4. Double-click `run_wizard.bat` to start.
 
-**Step 2:** Download this tool in your terminal/command prompt:
-```bash
-git clone https://github.com/HamzaETTH/SengledTools.git
-```
+#### Linux / macOS
+1. Install Python 3.10+ via your package manager.
+2. Clone the repo: `git clone https://github.com/HamzaETTH/SengledTools.git`
+3. Run: `chmod +x *.sh && ./setup_unix.sh && ./run_wizard.sh`
 
-**Step 3:** Navigate to the downloaded folder:
-```bash
-cd SengledTools
-```
-
-**Step 4:** Install Python dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-**Step 5:** Power on bulb and connect your computer to the bulb AP `Sengled_Wi‑Fi Bulb_XXXXXX`
-
-### Step-by-Step Setup
-
-1) **Factory Reset the Bulb**: Flick the power switch rapidly 5+ times until the bulb flashes and broadcasts `Sengled_Wi‑Fi Bulb_XXXXXX`. See [Factory Reset Procedures](docs/RESET_PROCEDURES.md).
-
-2) **Connect to Bulb's AP**: Join the `Sengled_Wi‑Fi Bulb_XXXXXX` network from your computer
-
-3) **Run the Wizard**:
-
-```bash
-python sengled_tool.py
-```
-
-4) **Follow on‑screen prompts**. The wizard will:
-   - Generate self‑signed TLS certificates automatically
-   - Start an embedded MQTT broker (TLS on 8883)
-   - Handle WiFi setup interactively OR use `--ssid` and `--password` for non-interactive setup
-   - Pair the bulb to your local broker automatically
-   - Detect bulb model and module type for compatibility checking
-   - **Optionally offer firmware flashing** after successful setup (based on detected compatibility). Use `--force-flash` to bypass these checks if you're sure about compatibility.
+### 3. Follow on-screen prompts
+The wizard will handle TLS certificates, start an embedded MQTT broker, and pair your bulb.
 
 
 ## Flashing information
@@ -151,7 +128,7 @@ usage: sengled_tool.py [-h] [--setup-wifi] [--broker-ip BROKER_IP] [--broker-por
                        [--group-switch {on,off}] [--group-brightness GROUP_BRIGHTNESS]
                        [--group-color-temp GROUP_COLOR_TEMP] [--gradient-time GRADIENT_TIME]
                        [--effect-status EFFECT_STATUS] [--ip IP] [--udp-on] [--udp-off]
-                       [--udp-brightness UDP_BRIGHTNESS] [--udp-color R G B] [--udp-json UDP_JSON]
+                       [--udp-brightness UDP_BRIGHTNESS] [--udp-set-color R G B] [--udp-json UDP_JSON]
                        [--topic TOPIC] [--payload PAYLOAD] [--force-flash] [--run-http-server]
                        [--run-servers] [--http-port HTTP_PORT] [--http-server-ip HTTP_SERVER_IP]
                        [--verbose]
@@ -209,7 +186,7 @@ UDP Control (Local Network):
   --udp-off             Turn the bulb off via UDP.
   --udp-brightness UDP_BRIGHTNESS
                         Set brightness via UDP (0-100).
-  --udp-color R G B     Set color via UDP (0-255 for each).
+  --udp-set-color R G B     Set color via UDP (0-255 for each).
   --udp-json UDP_JSON   Send a custom JSON payload via UDP.
 
 ⚠️ Untested Commands :

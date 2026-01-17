@@ -86,7 +86,7 @@ def _print_final_summary_and_hold(bulb_mac: str, udp_target_ip: Optional[str]):
         cmd(f"UDP OFF:         python sengled_tool.py --ip {udp_target_ip} --udp-off")
         cmd(f"UDP ON:          python sengled_tool.py --ip {udp_target_ip} --udp-on")
         cmd(f"UDP BRIGHTNESS:  python sengled_tool.py --ip {udp_target_ip} --udp-brightness 50")
-        cmd(f"UDP COLOR:       python sengled_tool.py --ip {udp_target_ip} --udp-color 255 0 0")
+        cmd(f"UDP COLOR:       python sengled_tool.py --ip {udp_target_ip} --udp-set-color 255 0 0")
         info("")
 
     cmd(f"MQTT ON:         python sengled_tool.py --mac {bulb_mac} --on")
@@ -488,15 +488,55 @@ def main():
         "--udp-off", action="store_true", help="Turn the bulb off via UDP."
     )
     udp_group.add_argument(
-        "--udp-brightness", type=int, help="Set brightness via UDP (0-100)."
+        "--udp-set-brightness", type=int, help="Set brightness via UDP (0-100)."
     )
     udp_group.add_argument(
-        "--udp-color",
+        "--udp-get-brightness", action="store_true", help="Get current brightness via UDP."
+    )
+    udp_group.add_argument(
+        "--udp-set-color",
         nargs=3,
         metavar=("R", "G", "B"),
         help="Set color via UDP (0-255 for each).",
     )
-    udp_group.add_argument("--udp-json", help="Send a custom JSON payload via UDP.")
+    udp_group.add_argument(
+        "--udp-get-adc", action="store_true", help="Get ADC value via UDP."
+    )
+    udp_group.add_argument(
+        "--udp-get-mac", action="store_true", help="Get device MAC address via UDP."
+    )
+    udp_group.add_argument(
+        "--udp-set-factory-mode", action="store_true", help="Set factory mode via UDP."
+    )
+    udp_group.add_argument(
+        "--udp-get-factory-mode", action="store_true", help="Get factory mode status via UDP."
+    )
+    udp_group.add_argument(
+        "--udp-get-software-version", action="store_true", help="Get software version via UDP."
+    )
+    udp_group.add_argument(
+        "--udp-set-colortemp", type=int, help="Set color temperature via UDP (0-100)."
+    )
+    udp_group.add_argument(
+        "--udp-set-pwm",
+        nargs=4,
+        metavar=("R", "G", "B", "W"),
+        help="Set PWM values via UDP (0-255 for each).",
+    )
+    udp_group.add_argument(
+        "--udp-search-devices", action="store_true", help="Search for devices via UDP."
+    )
+    udp_group.add_argument(
+        "--udp-reboot", action="store_true", help="Reboot device via UDP."
+    )
+    udp_group.add_argument(
+        "--udp-factory-reset", action="store_true", help="Factory reset device via UDP."
+    )
+    udp_group.add_argument(
+        "--udp-json",
+        help="Send a custom JSON payload via UDP. In bash: use single quotes. In CMD: escape quotes with backslashes.",
+        type=lambda x: json.loads(x) if isinstance(x, str) else x
+    )
 
     control_group.add_argument("--topic", help="Custom MQTT topic to publish to.")
     control_group.add_argument(
