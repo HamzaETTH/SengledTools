@@ -10,7 +10,7 @@ python sengled_tool.py --ip <BULB_IP> --udp-<COMMAND> [PARAMETERS]
 python sengled_tool.py --ip 192.168.8.1 --udp-on
 python sengled_tool.py --ip 192.168.8.1 --udp-off
 python sengled_tool.py --ip 192.168.8.1 --udp-brightness 50
-python sengled_tool.py --ip 192.168.8.1 --udp-color 255 0 0
+python sengled_tool.py --ip 192.168.8.1 --udp-set-color 255 0 0
 ```
 
 ---
@@ -22,7 +22,7 @@ python sengled_tool.py --ip 192.168.8.1 --udp-color 255 0 0
 | Power: On | `--udp-on` | none | `python sengled_tool.py --ip 192.168.8.1 --udp-on` |
 | Power: Off | `--udp-off` | none | `python sengled_tool.py --ip 192.168.8.1 --udp-off` |
 | Brightness | `--udp-brightness` | `0-100` | `python sengled_tool.py --ip 192.168.8.1 --udp-brightness 50` |
-| Color (RGB) | `--udp-color` | `R G B` (0-255 each) | `python sengled_tool.py --ip 192.168.8.1 --udp-color 255 0 0` |
+| Color (RGB) | `--udp-set-color` | `R G B` (0-255 each) | `python sengled_tool.py --ip 192.168.8.1 --udp-set-color 255 0 0` |
 | Custom JSON | `--udp-json` | JSON object | `python sengled_tool.py --ip 192.168.8.1 --udp-json '{"func":"set_device_brightness","param":{"brightness":50}}'` |
 
 ---
@@ -66,9 +66,9 @@ python sengled_tool.py --ip 192.168.8.1 --udp-brightness 50
 
 ### Color Control
 ```bash
-python sengled_tool.py --ip 192.168.8.1 --udp-color 255 0 0
-python sengled_tool.py --ip 192.168.8.1 --udp-color 0 255 0
-python sengled_tool.py --ip 192.168.8.1 --udp-color 0 0 255
+python sengled_tool.py --ip 192.168.8.1 --udp-set-color 255 0 0
+python sengled_tool.py --ip 192.168.8.1 --udp-set-color 0 255 0
+python sengled_tool.py --ip 192.168.8.1 --udp-set-color 0 0 255
 ```
 
 ### Custom JSON Payload
@@ -81,6 +81,9 @@ python sengled_tool.py --ip 192.168.8.1 --udp-json '{"func":"set_device_brightne
 
 # Color red
 python sengled_tool.py --ip 192.168.8.1 --udp-json '{"func":"set_device_color","param":{"red":255,"green":0,"blue":0}}'
+
+# Get hardware version
+python sengled_tool.py --ip 192.168.0.196 --udp-json '{"func":"get_hardver","param":{}}'
 ```
 
 ---

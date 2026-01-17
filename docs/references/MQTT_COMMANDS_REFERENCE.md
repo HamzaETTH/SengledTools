@@ -78,7 +78,7 @@ python sengled_tool.py --ip 192.168.0.247 --udp-off
 python sengled_tool.py --ip 192.168.0.247 --udp-brightness 50
 
 # Set color via UDP
-python sengled_tool.py --ip 192.168.0.247 --udp-color 255 0 0
+python sengled_tool.py --ip 192.168.0.247 --udp-set-color 255 0 0
 ```
 
 **Advanced Usage Examples:**

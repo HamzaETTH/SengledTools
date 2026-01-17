@@ -171,7 +171,7 @@ The Wi-Fi pairing process involves a complex sequence of UDP commands and HTTP r
 - **Ports**: HTTP server starts on port 80, falls back to 8080; MQTT uses 8883 (TLS)
 - **Endpoints**: Bulb expects specific JSON responses from `/life2/device/accessCloud.json` and `/jbalancer/new/bimqtt`
 
-For complete technical documentation, see [WIFI_PAIRING_REFERENCE.md](docs/references/WIFI_PAIRING_REFERENCE.md).
+For complete technical documentation, see [WIFI_PAIRING_REFERENCE.md](references/WIFI_PAIRING_REFERENCE.md).
 
 
 ## Setup & Control Flow
