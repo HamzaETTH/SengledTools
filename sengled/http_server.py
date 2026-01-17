@@ -1,5 +1,6 @@
 import json
 import os
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -163,10 +164,24 @@ class SetupHTTPServer:
 
         return Handler
 
+    @staticmethod
+    def _port_in_use(port: int) -> bool:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                return True
+        except OSError:
+            return False
+
     def start(self) -> bool:
         # Use only the specified port
         waiting("Starting HTTP server...")
         try:
+            if self._port_in_use(self.preferred_port):
+                stop(
+                    f"HTTP server failed on port {self.preferred_port}. Port is already in use."
+                )
+                stop("Please specify another port with --http-port.")
+                return False
             # Avoid slow DNS reverse lookup in HTTPServer.server_bind on Windows
             # by skipping socket.getfqdn() for '0.0.0.0'.
             class FastHTTPServer(HTTPServer):

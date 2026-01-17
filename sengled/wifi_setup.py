@@ -357,6 +357,8 @@ def run_wifi_setup(
 					# Use the actual HTTP setup server port we bound and the remembered WiFi IP address
 					http_port = str(preferred_http_port)
 					http_host = http_host_for_urls
+					# Use local timezone instead of hardcoding
+					local_tz = time.tzname[0] if time.tzname else "UTC"
 					params_payload = {
 						"name": "setParamsRequest",
 						"totalStep": 1,
@@ -365,7 +367,7 @@ def run_wifi_setup(
 							"userID": "618",
 							"appServerDomain": f"http://{http_host}:{http_port}/life2/device/accessCloud.json",
 							"jbalancerDomain": f"http://{http_host}:{http_port}/jbalancer/new/bimqtt",
-							"timeZone": "America/Chicago",
+							"timeZone": local_tz,
 							"routerInfo": router_info,
 						},
 					}

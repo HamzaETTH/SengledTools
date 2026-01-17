@@ -11,6 +11,7 @@ import sys
 import shutil
 import time
 import socket
+import signal
 from urllib.parse import urlparse
 import warnings
 import threading
@@ -324,10 +325,21 @@ def startLocalServer(mqtt_host, mqtt_port, preferred_port):
     info("  GET  /firmware.bin (or any .bin in script's directory)")
     info("Press Ctrl+C to stop")
 
+    stop_event = threading.Event()
+
+    def _signal_handler(_signum, _frame):
+        stop_event.set()
+
+    signal.signal(signal.SIGINT, _signal_handler)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, _signal_handler)
+
     try:
-        while True:
+        while not stop_event.is_set():
             time.sleep(1)
     except KeyboardInterrupt:
+        stop_event.set()
+    finally:
         server.stop()
         success("Server stopped")
 
@@ -368,10 +380,21 @@ def handle_run_servers(args, resolved_broker_ip: str):
     say(f"  HTTP: {http_server_ip}:{server.port}")
     say("Press Ctrl+C to stop both servers")
     
+    stop_event = threading.Event()
+
+    def _signal_handler(_signum, _frame):
+        stop_event.set()
+
+    signal.signal(signal.SIGINT, _signal_handler)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, _signal_handler)
+
     try:
-        while True:
+        while not stop_event.is_set():
             time.sleep(1)
     except KeyboardInterrupt:
+        stop_event.set()
+    finally:
         server.stop()
         broker.stop()
         success("Servers stopped.")

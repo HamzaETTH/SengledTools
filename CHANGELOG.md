@@ -21,7 +21,6 @@
 - **`--force-flash`**: Allow flashing even on unsupported models (bypass safety checks)
 - **`--verbose`**: Enable debug logging and error details
 - **`--http-server-ip`**: Specify custom IP for HTTP URLs sent to bulbs
-- **Default port change**: HTTP server now defaults to port 8080 instead of 80
 
 ### Improved User Experience
 - **Enhanced logging system**: New structured logging with emoji support, indentation, and verbose modes
