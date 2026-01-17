@@ -1,5 +1,7 @@
 # Sengled Bulb UDP Command Reference
 
+UDP control is a smaller subset than MQTT control; use the MQTT reference for advanced features like scenes, effects, or device management.
+
 ## How to Send UDP Commands (using `sengled_tool.py`)
 
 ```bash

@@ -11,6 +11,7 @@ A comprehensive tool for local control and protocol research of Sengled Wi‑Fi 
 - **[FAQ](#faq)** - Frequently asked questions
 - **[Wi-Fi Setup Sequence](#wi-fi-setup-sequence)** - Technical pairing details
 - **[Advanced Instructions](docs/INSTRUCTIONS_ADVANCED.md)** - Detailed troubleshooting and advanced usage
+- **[Home Assistant UDP Integration](custom_components/sengled_udp/README.md)** - Local-only Home Assistant custom component
 
 
 ## Quick Start
@@ -24,13 +25,23 @@ A comprehensive tool for local control and protocol research of Sengled Wi‑Fi 
 #### Windows
 1. Install Python 3.10+ from [python.org](https://www.python.org/downloads/)
 2. Clone the repo: `git clone https://github.com/HamzaETTH/SengledTools.git`
-3. Double-click `setup_windows.bat` (first time only).
-4. Double-click `run_wizard.bat` to start.
+3. Double-click `run_wizard.bat` to start. It will auto-run setup if needed.
+4. Optional: run `setup_windows.bat` directly if you want to preinstall deps.
 
 #### Linux / macOS
 1. Install Python 3.10+ via your package manager.
 2. Clone the repo: `git clone https://github.com/HamzaETTH/SengledTools.git`
-3. Run: `chmod +x *.sh && ./setup_unix.sh && ./run_wizard.sh`
+3. Run: `chmod +x *.sh && ./run_wizard.sh` (auto-runs `./setup_unix.sh` if needed)
+4. Optional: run `./setup_unix.sh` directly if you want to preinstall deps.
+
+### Manual install
+Install Python 3.10+, clone the repo, install deps, then run the tool with args.
+```
+git clone https://github.com/HamzaETTH/SengledTools.git
+cd SengledTools
+pip install -r requirements.txt
+python sengled_tool.py --setup-wifi
+```
 
 ### 3. Follow on-screen prompts
 The wizard will handle TLS certificates, start an embedded MQTT broker, and pair your bulb.

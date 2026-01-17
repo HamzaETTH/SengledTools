@@ -26,15 +26,24 @@ fi
 if [ ! -d ".venv" ]; then
     if [ "$UV_AVAILABLE" -eq 1 ]; then
         echo "Creating virtual environment using uv..."
-        uv venv .venv
+        uv venv --seed .venv
     else
         echo "Creating virtual environment using python3 -m venv..."
-        python3 -m venv .venv
+        python3 -m venv --include-pip .venv
     fi
 fi
 
 # Install/refresh deps
 echo "Installing/refreshing dependencies..."
+if ! .venv/bin/python -m pip --version >/dev/null 2>&1; then
+    echo "pip not found in venv. Bootstrapping with ensurepip..."
+    if ! .venv/bin/python -m ensurepip --upgrade; then
+        echo "ERROR: Failed to bootstrap pip (ensurepip)."
+        echo "On many distros you need to install python3-venv or python3-ensurepip."
+        exit 1
+    fi
+fi
+
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r requirements.txt
 
