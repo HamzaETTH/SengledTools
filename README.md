@@ -131,6 +131,41 @@ Quick PWM commands for brightness control in the Tasmota console (for Sengled W3
 - **100%:** `PWM1 1023`
 
 
+### WLED Firmware
+
+WLED firmware has been successfully tested and confirmed working on Sengled bulbs with ESP8266EX chips. WLED provides a plug-and-play option with **direct Alexa integration** via Hue emulation, requiring no additional MQTT broker or Home Assistant instance.
+
+#### WLED Configuration
+
+**LED output mode:** PWM RGBW
+
+#### GPIO Pinouts
+
+##### W31-N15
+```
+GPIO pins: 13, 12, 15, 14
+```
+
+##### W31-N13H
+```
+GPIO pins: 12, 15, 13, 4
+```
+
+#### Setting Up Alexa Integration (Hue Emulation)
+
+1. In WLED, navigate to **Settings → Sync Interfaces → Alexa Voice Assistant**
+2. Enable **"Emulate Alexa device"**
+3. Set the invocation name (what you want the bulb to show as in Alexa)
+4. Click **Save**
+
+Then from your phone:
+1. Open the Alexa app
+2. Select **"Add device"** → **Light**
+3. When asked for manufacturer, select **Philips Hue**
+4. Click **"Yes"** when prompted "Is this device Bluetooth enabled"
+5. Wait for discovery (may take a few minutes)
+6. Your WLED/Sengled bulb should now appear in the Alexa app
+
 
 ## Command Reference
 
