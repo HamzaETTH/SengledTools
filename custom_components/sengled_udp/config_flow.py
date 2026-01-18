@@ -54,7 +54,7 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             mode=selector.SelectSelectorMode.LIST,
                         )
                     ),
-                    vol.Optional("name_prefix", default=""): cv.string,
+                    vol.Optional("name_prefix", default="Sengled"): cv.string,
                 }
             )
 
@@ -108,11 +108,15 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 else:
                     for host in hosts:
                         await self._test_connection(host)
+
+                    # Best-effort: infer bulb type so we can name entities + hide unsupported controls immediately.
+                    _, host_types = await self._build_discovery_options(hosts)
                     return self.async_create_entry(
                         title=f"Sengled Bulbs ({len(hosts)})",
                         data={
                             "hosts": hosts,
-                            "name_prefix": user_input.get("name_prefix"),
+                            "name_prefix": user_input.get("name_prefix") or None,
+                            "host_types": host_types,
                         },
                     )
             except Exception:
@@ -124,7 +128,7 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data_schema = vol.Schema(
             {
                 vol.Required("hosts", default=default_hosts): cv.string,
-                vol.Optional("name_prefix", default=""): cv.string,
+                vol.Optional("name_prefix", default="Sengled"): cv.string,
             }
         )
 

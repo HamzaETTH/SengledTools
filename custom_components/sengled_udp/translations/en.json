@@ -21,7 +21,7 @@
         },
         "data_description": {
           "hosts": "Select one or more bulbs to add.",
-          "name_prefix": "Optional. Base name used for created lights. With multiple bulbs, names become like: \"Living Room (192.168.0.65)\". Leave blank to auto-name as RGB/White."
+          "name_prefix": "Base name used for created lights (default: \"Sengled\"). With multiple bulbs, names become like: \"Sengled (RGB) (192.168.0.64)\". Clear this field to auto-name as RGB/White."
         }
       },
       "manual": {
@@ -33,7 +33,7 @@
         },
         "data_description": {
           "hosts": "One or more bulb IPs. Separate with commas, spaces, or newlines.",
-          "name_prefix": "Optional. Base name used for created lights. With multiple bulbs, names become like: \"Living Room (192.168.0.65)\". Leave blank to auto-name as RGB/White."
+          "name_prefix": "Base name used for created lights (default: \"Sengled\"). With multiple bulbs, names become like: \"Sengled (RGB) (192.168.0.64)\". Clear this field to auto-name as RGB/White."
         }
       }
     },

@@ -31,26 +31,32 @@ async def async_setup_entry(
         hosts = [config_entry.data["host"]]
 
     name_prefix = config_entry.data.get("name_prefix") or config_entry.data.get("name")
-    host_types = config_entry.data.get("host_types") or {}
+    host_types: dict[str, str] = config_entry.data.get("host_types") or {}
 
     multiple = len(hosts) > 1
     entities: list[SengledLight] = []
     for host in hosts:
         # Avoid duplicate names when adding many bulbs at once.
         # If no name_prefix provided, auto-name based on discovered type (rgb/white).
+        typ = host_types.get(host)
         if name_prefix:
-            name = f"{name_prefix} ({host})" if multiple else name_prefix
+            if typ == "rgb":
+                base = f"{name_prefix} (RGB)"
+            elif typ == "white":
+                base = f"{name_prefix} (White)"
+            else:
+                base = name_prefix
+            name = f"{base} ({host})" if multiple else base
         else:
-            typ = host_types.get(host)
             if typ == "white":
-                base = "Sengled White Bulb"
+                base = "Sengled Bulb (White)"
             elif typ == "rgb":
-                base = "Sengled RGB Bulb"
+                base = "Sengled Bulb (RGB)"
             else:
                 base = "Sengled Bulb"
             name = f"{base} ({host})" if multiple else base
         unique_id = f"{config_entry.entry_id}_{host}"
-        entities.append(SengledLight(host, name, unique_id))
+        entities.append(SengledLight(host, name, unique_id, host_type=typ))
 
     async_add_entities(entities)
 
@@ -58,7 +64,13 @@ async def async_setup_entry(
 class SengledLight(LightEntity):
     """Representation of a Sengled UDP Light."""
 
-    def __init__(self, host: str, name: str, unique_id: str) -> None:
+    def __init__(
+        self,
+        host: str,
+        name: str,
+        unique_id: str,
+        host_type: str | None = None,
+    ) -> None:
         """Initialize the light."""
         self._host = host
         self._name = name
@@ -72,12 +84,25 @@ class SengledLight(LightEntity):
         self._color_temp_kelvin = None
         self._color_mode = ColorMode.RGB
         self._available = True
-        self._is_rgb: bool | None = None  # None = not yet detected
+        # None = not yet detected. If provided (from config flow), we can set capabilities immediately.
+        if host_type == "rgb":
+            self._is_rgb = True
+        elif host_type == "white":
+            self._is_rgb = False
+        else:
+            self._is_rgb = None
 
         self._attr_name = name
         self._attr_unique_id = unique_id
-        self._attr_color_mode = ColorMode.RGB
-        self._attr_supported_color_modes = {ColorMode.RGB, ColorMode.COLOR_TEMP}
+        if self._is_rgb is False:
+            self._attr_color_mode = ColorMode.BRIGHTNESS
+            self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+            self._color_mode = ColorMode.BRIGHTNESS
+            self._rgb_color = None
+            self._color_temp_kelvin = None
+        else:
+            self._attr_color_mode = ColorMode.RGB
+            self._attr_supported_color_modes = {ColorMode.RGB, ColorMode.COLOR_TEMP}
 
         self._attr_min_color_temp_kelvin = 2000
         self._attr_max_color_temp_kelvin = 6500
