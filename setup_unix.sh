@@ -29,7 +29,7 @@ if [ ! -d ".venv" ]; then
         uv venv --seed .venv
     else
         echo "Creating virtual environment using python3 -m venv..."
-        python3 -m venv --include-pip .venv
+        python3 -m venv .venv
     fi
 fi
 
