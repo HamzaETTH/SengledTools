@@ -102,6 +102,42 @@ python sengled_tool.py --ip 192.168.0.196 --udp-json '{"func":"get_hardver","par
 - Color values: RGB 0-255
 - Brightness: 0-100
 
+## Discovery (find bulbs on your LAN)
+
+The bulb responds to `search_devices`. If you send it as a **UDP broadcast** and listen for replies, you can usually discover bulbs on the **same LAN/VLAN**.
+
+Limitations:
+- Broadcast discovery typically **will not cross subnets/VLANs**
+- Some routers/AP isolation settings will block it
+
+Example Python snippet:
+
+```python
+import json
+import socket
+import time
+
+msg = json.dumps({"func": "search_devices", "param": {}}).encode()
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+sock.settimeout(0.3)
+
+sock.sendto(msg, ("255.255.255.255", 9080))
+
+end = time.time() + 2.0
+while time.time() < end:
+    try:
+        data, addr = sock.recvfrom(2048)
+    except socket.timeout:
+        continue
+    try:
+        payload = json.loads(data.decode(errors="ignore"))
+    except Exception:
+        continue
+    print(addr[0], payload)
+```
+
 
 ## Function discovery and errors
 

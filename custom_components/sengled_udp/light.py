@@ -25,11 +25,34 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Sengled UDP light platform."""
-    host = config_entry.data["host"]
-    name = config_entry.data.get("name", "Sengled Bulb")
+    # Backwards compat: older entries stored a single host under "host" + optional "name"
+    hosts = config_entry.data.get("hosts")
+    if not hosts:
+        hosts = [config_entry.data["host"]]
 
-    light = SengledLight(host, name, config_entry.entry_id)
-    async_add_entities([light])
+    name_prefix = config_entry.data.get("name_prefix") or config_entry.data.get("name")
+    host_types = config_entry.data.get("host_types") or {}
+
+    multiple = len(hosts) > 1
+    entities: list[SengledLight] = []
+    for host in hosts:
+        # Avoid duplicate names when adding many bulbs at once.
+        # If no name_prefix provided, auto-name based on discovered type (rgb/white).
+        if name_prefix:
+            name = f"{name_prefix} ({host})" if multiple else name_prefix
+        else:
+            typ = host_types.get(host)
+            if typ == "white":
+                base = "Sengled White Bulb"
+            elif typ == "rgb":
+                base = "Sengled RGB Bulb"
+            else:
+                base = "Sengled Bulb"
+            name = f"{base} ({host})" if multiple else base
+        unique_id = f"{config_entry.entry_id}_{host}"
+        entities.append(SengledLight(host, name, unique_id))
+
+    async_add_entities(entities)
 
 
 class SengledLight(LightEntity):
@@ -49,6 +72,7 @@ class SengledLight(LightEntity):
         self._color_temp_kelvin = None
         self._color_mode = ColorMode.RGB
         self._available = True
+        self._is_rgb: bool | None = None  # None = not yet detected
 
         self._attr_name = name
         self._attr_unique_id = unique_id
@@ -87,13 +111,46 @@ class SengledLight(LightEntity):
         """Fetch new state data for this light."""
         status = await self._get_device_status()
         if status:
+            # Detect RGB vs white-only on first successful query
+            if self._is_rgb is None:
+                self._detect_capabilities(status)
             # Also get the actual brightness from the device
             brightness_info = await self._get_device_brightness()
             self._update_state_from_status(status, brightness_info)
 
+    def _detect_capabilities(self, status: Dict[str, Any]) -> None:
+        """Detect if bulb is RGB or white-only based on search_devices response."""
+        # RGB bulbs have R, G, B keys; white-only bulbs only have W
+        has_rgb = "R" in status and "G" in status and "B" in status
+        self._is_rgb = has_rgb
+
+        if has_rgb:
+            self._attr_supported_color_modes = {ColorMode.RGB, ColorMode.COLOR_TEMP}
+            self._attr_color_mode = ColorMode.RGB
+            _LOGGER.debug("Detected RGB bulb: %s (%s)", self._attr_name, self._host)
+        else:
+            self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+            self._attr_color_mode = ColorMode.BRIGHTNESS
+            self._color_mode = ColorMode.BRIGHTNESS
+            _LOGGER.debug("Detected white-only bulb: %s (%s)", self._attr_name, self._host)
+
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light."""
-        # Handle color temperature
+        # White-only bulbs: only handle brightness + power
+        if self._is_rgb is False:
+            if ATTR_BRIGHTNESS in kwargs:
+                brightness = kwargs[ATTR_BRIGHTNESS]
+                brightness_percent = int((brightness / 255) * 100)
+                await self._send_command(
+                    "set_device_brightness", {"brightness": brightness_percent}
+                )
+                self._brightness = brightness
+            await self._send_command("set_device_switch", {"switch": 1})
+            self._is_on = True
+            self.async_write_ha_state()
+            return
+
+        # RGB bulbs: handle color temperature
         if ATTR_COLOR_TEMP_KELVIN in kwargs:
             color_temp_kelvin = kwargs[ATTR_COLOR_TEMP_KELVIN]
             device_temp = self._kelvin_to_device_temp(color_temp_kelvin)
@@ -173,7 +230,27 @@ class SengledLight(LightEntity):
     ) -> None:
         """Update internal state from device status."""
         try:
-            # Extract RGBW values and frequencies
+            # White-only bulbs: simpler state update
+            if self._is_rgb is False:
+                w_value = status.get("W", {}).get("value", 0)
+                w_freq = status.get("W", {}).get("freq", 1)
+                self._is_on = w_freq == 0
+
+                if brightness_info and "brightness" in brightness_info:
+                    device_brightness = brightness_info["brightness"]
+                    self._brightness = min(255, int((device_brightness / 100) * 255))
+                else:
+                    self._brightness = min(255, int((w_value / 100) * 255)) if self._is_on else 0
+
+                self._color_mode = ColorMode.BRIGHTNESS
+                self._available = True
+                _LOGGER.debug(
+                    "Updated white-only state: on=%s, brightness=%s, W=%s, freq=%s",
+                    self._is_on, self._brightness, w_value, w_freq
+                )
+                return
+
+            # RGB bulbs: full RGBW state update
             r_value = status.get("R", {}).get("value", 0)
             g_value = status.get("G", {}).get("value", 0)
             b_value = status.get("B", {}).get("value", 0)

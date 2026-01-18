@@ -1,7 +1,42 @@
 ## Sengled UDP (Home Assistant custom component)
 
-This is a Home Assistant custom integration that controls Sengled Wi-Fi bulbs directly over UDP on your LAN (no cloud). It exposes a `light` entity with on/off, brightness, RGB color, and color temperature support using the same UDP protocol documented in this repo.
+Local-only Home Assistant integration for controlling **Sengled Wi‑Fi bulbs over UDP** on your LAN (**no cloud**).
 
-Setup: copy this folder into your Home Assistant `config/custom_components/sengled_udp`, restart Home Assistant, then add the "Sengled UDP" integration and enter the bulb IP (and optional name). The bulb must be reachable on UDP port 9080 from Home Assistant.
+### What you get
 
-Notes: this integration talks to the bulb directly; it does not use MQTT and does not pair the bulb for you.
+- `light` entity with **on/off**, **brightness**, **RGB color**, **color temperature**
+
+### Requirements
+
+- Home Assistant can reach the bulb on **UDP port 9080** (same LAN/VLAN, no firewall blocks)
+- You know the bulb’s **local IP address**
+
+### Install / setup (step-by-step)
+
+1. Copy this folder to:
+   - `config/custom_components/sengled_udp`
+2. Restart Home Assistant.
+3. Go to Settings → Devices & Services → Add Integration.
+4. Search for and select **Sengled UDP**.
+5. Choose:
+   - **Discover** (tries to find bulbs on your LAN automatically), or
+   - **Manual** (paste IPs yourself)
+6. In **Hosts**, enter one or more bulb IPs (any of these formats work):
+   - one per line
+   - comma-separated
+7. Set **Name prefix** (optional) and finish. If you add multiple bulbs at once, names will look like `Name Prefix (192.168.x.x)`.
+8. (Recommended) In your router, create a **DHCP reservation** for each bulb so it always gets the same IP. If an IP changes, that bulb entity will stop working until you update it.
+
+### Notes / non-goals
+
+- Direct-to-bulb UDP control only — **no MQTT**
+- **Does not pair** the bulb or help it join Wi‑Fi; it assumes the bulb is already on your network
+
+### UDP vs MQTT (limitations)
+
+This integration uses **UDP**, which is great for local/basic control but is a **smaller feature set** than Sengled’s MQTT command surface.
+
+- **UDP (this integration)**: on/off, brightness, RGB (RGB bulbs), color temperature (supported models), basic LAN discovery + status.
+- **MQTT (advanced)**: scenes, special effects, entertainment sync modes, group control, transition/gradient time, device management, and OTA firmware update commands.
+
+See: [`docs/references/MQTT_COMMANDS_REFERENCE.md`](../../docs/references/MQTT_COMMANDS_REFERENCE.md)

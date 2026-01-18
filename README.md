@@ -2,6 +2,14 @@
 
 A comprehensive tool for local control and protocol research of Sengled Wi‑Fi bulbs. It can pair bulbs to your own MQTT broker (no cloud), provides UDP control, and includes firmware flashing capability to install open source firmware like Tasmota since Sengled's cloud servers are no longer functional.
 
+## TL;DR (what this repo is)
+
+This repo is a grab-bag of **local control options** for Sengled Wi‑Fi bulbs after the cloud broke. There are three “tracks”:
+
+- **Home Assistant (recommended for most)**: use the built-in **local UDP** custom integration to add bulbs as `light` entities (no cloud, no flashing). See **[Home Assistant (Local UDP Integration)](#home-assistant-local-udp-integration)**.
+- **CLI tool / protocol research**: use `sengled_tool.py` to send UDP/MQTT commands, pair bulbs to a local broker, and inspect behavior.
+- **Flashing (optional)**: install open firmware (Tasmota/ESPHome) on compatible hardware if you want to completely replace Sengled’s stack. After flashing, bulbs can be controlled directly (Tasmota web UI) and integrate cleanly with Home Assistant (e.g. via Tasmota/MQTT).
+
 ## Quick Navigation
 
 - **[Quick Start](#quick-start)** - Easiest setup for most users
@@ -11,7 +19,7 @@ A comprehensive tool for local control and protocol research of Sengled Wi‑Fi 
 - **[FAQ](#faq)** - Frequently asked questions
 - **[Wi-Fi Setup Sequence](#wi-fi-setup-sequence)** - Technical pairing details
 - **[Advanced Instructions](docs/INSTRUCTIONS_ADVANCED.md)** - Detailed troubleshooting and advanced usage
-- **[Home Assistant UDP Integration](custom_components/sengled_udp/README.md)** - Local-only Home Assistant custom component
+- **[Home Assistant (Local UDP Integration)](#home-assistant-local-udp-integration)** - Use bulbs in Home Assistant without cloud
 
 
 ## Quick Start
@@ -235,7 +243,10 @@ To further troubleshoot, make note of your local IP (which is output by the setu
 
 <summary>Can I use this with Home Assistant?</summary>
 
-**Yes, but only if custom firmware (like Tasmota) is used.** 
+**Yes.** This repo includes a **local-only Home Assistant custom integration** that controls Sengled Wi‑Fi bulbs directly over **UDP** (no cloud).
+
+- Setup + details: [custom_components/sengled_udp/README.md](custom_components/sengled_udp/README.md)
+- Notes: it **does not pair** bulbs for you; it assumes the bulb is already on your LAN and reachable on UDP port 9080.
 
 </details>
 
@@ -252,6 +263,22 @@ To further troubleshoot, make note of your local IP (which is output by the setu
 
 If you flash Tasmota onto the bulbs, you can use the basic web interface to control the color brightness and set up timers. This does not require additional hardware or software.
 </details>
+
+## Home Assistant (Local UDP Integration)
+
+If you use Home Assistant and just want local control, you can skip MQTT and firmware flashing and use the custom integration included here:
+
+- **Integration**: [custom_components/sengled_udp/](custom_components/sengled_udp/)
+- **Setup instructions**: [custom_components/sengled_udp/README.md](custom_components/sengled_udp/README.md)
+
+What it does:
+- Creates one `light` entity per bulb
+- Supports **RGB bulbs** and **white-only bulbs** (white bulbs won’t show RGB controls)
+- Can **discover bulbs on the LAN** (best-effort via UDP broadcast) or let you enter IPs manually
+
+Gotchas:
+- Reserve each bulb’s IP in your router (DHCP reservation), otherwise entities break when IPs change.
+- Discovery usually only works when Home Assistant and bulbs are on the same LAN/VLAN (broadcast doesn’t cross subnets).
 
 ## Wi-Fi Setup Sequence
 

@@ -1,0 +1,45 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sengled UDP",
+        "menu_options": {
+          "discover": "Discover bulbs on LAN (auto-scan)",
+          "manual": "Enter IP addresses manually"
+        },
+        "menu_option_descriptions": {
+          "discover": "Broadcasts a UDP probe and listens for bulbs responding on your LAN/VLAN.",
+          "manual": "Paste one or more bulb IPs if discovery doesn’t work on your network."
+        }
+      },
+      "discover": {
+        "title": "Discovered Bulbs",
+        "description": "Found bulbs are listed below. Edit if needed, then submit.",
+        "data": {
+          "hosts": "Bulb IPs",
+          "name_prefix": "Name prefix"
+        },
+        "data_description": {
+          "hosts": "Select one or more bulbs to add.",
+          "name_prefix": "Optional. Base name used for created lights. With multiple bulbs, names become like: \"Living Room (192.168.0.65)\". Leave blank to auto-name as RGB/White."
+        }
+      },
+      "manual": {
+        "title": "Manual Entry",
+        "description": "Enter one or more bulb IP addresses.",
+        "data": {
+          "hosts": "Bulb IPs",
+          "name_prefix": "Name prefix"
+        },
+        "data_description": {
+          "hosts": "One or more bulb IPs. Separate with commas, spaces, or newlines.",
+          "name_prefix": "Optional. Base name used for created lights. With multiple bulbs, names become like: \"Living Room (192.168.0.65)\". Leave blank to auto-name as RGB/White."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to one or more bulbs",
+      "no_devices_found": "No bulbs found on the network"
+    }
+  }
+}
