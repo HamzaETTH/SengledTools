@@ -14,7 +14,7 @@
       },
       "discover": {
         "title": "Discovered Bulbs",
-        "description": "Found bulbs are listed below. Edit if needed, then submit.",
+        "description": "Select the bulbs you want to add using the checkboxes below.\n\n{already_configured}",
         "data": {
           "hosts": "Bulb IPs",
           "name_prefix": "Name prefix"
@@ -39,7 +39,12 @@
     },
     "error": {
       "cannot_connect": "Could not connect to one or more bulbs",
-      "no_devices_found": "No bulbs found on the network"
+      "no_devices_found": "No bulbs found on the network",
+      "already_configured": "One or more selected bulbs are already configured",
+      "no_new_devices": "No new bulbs found (only already-configured bulbs were discovered)"
+    },
+    "abort": {
+      "no_new_devices": "No new bulbs found.\n\nAlready configured: {already_configured}"
     }
   }
 }

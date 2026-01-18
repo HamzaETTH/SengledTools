@@ -40,13 +40,29 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     show_no_devices_error=True,
                 )
 
-            options, host_types = await self._build_discovery_options(discovered)
+            existing_hosts = self._get_existing_hosts()
+            duplicates = [h for h in discovered if h in existing_hosts]
+            new_hosts = [h for h in discovered if h not in existing_hosts]
+
+            # Only show *new* bulbs as selectable options (duplicates are listed in the description).
+            options, host_types = await self._build_discovery_options(new_hosts)
             self._discovered_host_types = host_types
+            self._discovered_duplicates = duplicates
+            dup_labels = await self._format_configured_hosts(duplicates) if duplicates else []
+
+            # If there are no new bulbs to add, don't show a form at all.
+            if not new_hosts and dup_labels:
+                return self.async_abort(
+                    reason="no_new_devices",
+                    description_placeholders={
+                        "already_configured": ", ".join(dup_labels),
+                    },
+                )
 
             data_schema = vol.Schema(
                 {
                     vol.Required(
-                        "hosts", default=discovered
+                        "hosts", default=new_hosts
                     ): selector.SelectSelector(
                         selector.SelectSelectorConfig(
                             options=options,
@@ -62,12 +78,43 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 step_id="discover",
                 data_schema=data_schema,
                 errors={},
+                description_placeholders={
+                    "already_configured": (
+                        f"Already configured: {', '.join(dup_labels)}" if dup_labels else ""
+                    ),
+                },
             )
 
         try:
             hosts = self._parse_hosts(user_input["hosts"])
             if not hosts:
-                raise ValueError("No hosts selected")
+                errors = {"base": "no_devices_found"}
+                return await self.async_step_discover(user_input=None)
+
+            existing_hosts = self._get_existing_hosts()
+            duplicates = [h for h in hosts if h in existing_hosts]
+            if duplicates:
+                # Re-show discovery list; duplicates are not supposed to be selectable,
+                # but handle it defensively.
+                return self.async_show_form(
+                    step_id="discover",
+                    data_schema=vol.Schema(
+                        {
+                            vol.Required("hosts", default=[]): selector.SelectSelector(
+                                selector.SelectSelectorConfig(
+                                    options=(self._discovered_options() or []),
+                                    multiple=True,
+                                    mode=selector.SelectSelectorMode.LIST,
+                                )
+                            ),
+                            vol.Optional("name_prefix", default="Sengled"): cv.string,
+                        }
+                    ),
+                    errors={"base": "already_configured"},
+                    description_placeholders={
+                        "already_configured": ", ".join(duplicates),
+                    },
+                )
 
             for host in hosts:
                 await self._test_connection(host)
@@ -91,6 +138,19 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 show_no_devices_error=False,
             )
 
+    def _discovered_options(self) -> list[dict] | None:
+        """Build selector options from the last discovery probe if available."""
+        host_types = getattr(self, "_discovered_host_types", {}) or {}
+        hosts = list(host_types.keys())
+        if not hosts:
+            return None
+        opts: list[dict] = []
+        for host in hosts:
+            typ = host_types.get(host)
+            suffix = "RGB" if typ == "rgb" else ("White" if typ == "white" else "Unknown")
+            opts.append({"value": host, "label": f"{host} — {suffix}"})
+        return opts
+
     async def _async_hosts_form(
         self,
         step_id: str,
@@ -99,6 +159,7 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         show_no_devices_error: bool = False,
     ):
         errors: dict[str, str] = {}
+        dup_labels: list[str] = []
 
         if user_input is not None:
             try:
@@ -106,19 +167,26 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if not hosts:
                     errors["base"] = "no_devices_found"
                 else:
-                    for host in hosts:
-                        await self._test_connection(host)
+                    # Check for duplicates across all existing config entries
+                    existing_hosts = self._get_existing_hosts()
+                    duplicates = [h for h in hosts if h in existing_hosts]
+                    if duplicates:
+                        errors["base"] = "already_configured"
+                        dup_labels = await self._format_configured_hosts(duplicates)
+                    else:
+                        for host in hosts:
+                            await self._test_connection(host)
 
-                    # Best-effort: infer bulb type so we can name entities + hide unsupported controls immediately.
-                    _, host_types = await self._build_discovery_options(hosts)
-                    return self.async_create_entry(
-                        title=f"Sengled Bulbs ({len(hosts)})",
-                        data={
-                            "hosts": hosts,
-                            "name_prefix": user_input.get("name_prefix") or None,
-                            "host_types": host_types,
-                        },
-                    )
+                        # Best-effort: infer bulb type so we can name entities + hide unsupported controls immediately.
+                        _, host_types = await self._build_discovery_options(hosts)
+                        return self.async_create_entry(
+                            title=f"Sengled Bulbs ({len(hosts)})",
+                            data={
+                                "hosts": hosts,
+                                "name_prefix": user_input.get("name_prefix") or None,
+                                "host_types": host_types,
+                            },
+                        )
             except Exception:
                 errors["base"] = "cannot_connect"
 
@@ -136,7 +204,76 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id=step_id,
             data_schema=data_schema,
             errors=errors,
+            description_placeholders={
+                "already_configured": (
+                    ("Already configured: " + ", ".join(dup_labels))
+                    if dup_labels
+                    else ""
+                )
+            },
         )
+
+    def _get_existing_hosts(self) -> set[str]:
+        """Get all bulb IPs already configured across all entries."""
+        existing_hosts: set[str] = set()
+        for entry in self.hass.config_entries.async_entries(DOMAIN):
+            hosts = entry.data.get("hosts") or entry.data.get("host")
+            if hosts:
+                if isinstance(hosts, list):
+                    existing_hosts.update(hosts)
+                else:
+                    existing_hosts.add(hosts)
+        return existing_hosts
+
+    def _get_entry_by_host(self) -> dict[str, config_entries.ConfigEntry]:
+        """Map host -> config entry (best-effort)."""
+        out: dict[str, config_entries.ConfigEntry] = {}
+        for entry in self.hass.config_entries.async_entries(DOMAIN):
+            hosts = entry.data.get("hosts") or entry.data.get("host")
+            if not hosts:
+                continue
+            if isinstance(hosts, list):
+                for h in hosts:
+                    out[str(h)] = entry
+            else:
+                out[str(hosts)] = entry
+        return out
+
+    async def _format_configured_hosts(self, hosts: list[str]) -> list[str]:
+        """Format already-configured hosts as human-friendly labels."""
+        entry_by_host = self._get_entry_by_host()
+        labels: list[str] = []
+
+        for host in hosts:
+            entry = entry_by_host.get(host)
+            prefix = None
+            host_types: dict[str, str] = {}
+            if entry:
+                prefix = entry.data.get("name_prefix") or entry.data.get("name") or "Sengled"
+                host_types = entry.data.get("host_types") or {}
+            else:
+                prefix = "Sengled"
+
+            typ = host_types.get(host)
+            if typ not in ("rgb", "white"):
+                # Probe if we don't have stored type yet
+                try:
+                    resp = await self._send_udp(host, "search_devices", {})
+                    if resp and isinstance(resp, dict) and resp.get("ret") == 0:
+                        typ = "rgb" if all(k in resp for k in ("R", "G", "B")) else "white"
+                except Exception:
+                    typ = None
+
+            if typ == "rgb":
+                base = f"{prefix} (RGB)"
+            elif typ == "white":
+                base = f"{prefix} (White)"
+            else:
+                base = str(prefix)
+
+            labels.append(f"{base} ({host})")
+
+        return labels
 
     @staticmethod
     def _parse_hosts(hosts) -> list[str]:
