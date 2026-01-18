@@ -37,6 +37,10 @@ python sengled_tool.py --ip 192.168.8.1 --udp-set-color 255 0 0
 | `set_device_brightness` | `{"func":"set_device_brightness","param":{"brightness":50}}` | `{"func":"set_device_brightness","result":{"ret":0,"msg":"success"}}` |
 | `get_device_brightness` | `{"func":"get_device_brightness","param":{}}` | `{"func":"get_device_brightness","result":{"brightness":100,"ret":0,"msg":"success"}}` |
 | `set_device_color` | `{"func":"set_device_color","param":{"red":255,"green":0,"blue":0}}` | `{"func":"set_device_color","result":{"ret":0,"msg":"success"}}` |
+| `get_device_mode` | `{"func":"get_device_mode","param":{}}` | `{"func":"get_device_mode","result":{"mode":0,"ret":0,"msg":"success"}}` |
+| `get_led_color` | `{"func":"get_led_color","param":{}}` | `{"func":"get_led_color","result":{"W":{"freq":0,"value":0},"ret":0,"msg":"success"}}` |
+| `set_color_mode` | `{"func":"set_color_mode","param":{"mode":1}}` | `{"func":"set_color_mode","result":{"ret":0,"msg":"success"}}` |
+| `set_device_mode` | `{"func":"set_device_mode","param":{"mode":1}}` | `{"func":"set_device_mode","result":{"ret":0,"msg":"success"}}` |
 | `get_device_adc` | `{"func":"get_device_adc","param":{}}` | `{"func":"get_device_adc","result":{"adc":630.73,"msg":"success"}}` |
 | `set_device_mac` | `{"func":"set_device_mac","param":{}}` | `<no response>` |
 | `get_device_mac` | `{"func":"get_device_mac","param":{}}` | `{"func":"get_device_mac","result":{"mac":"00:00:00:00:00:00","ret":0,"msg":"success"}}` |

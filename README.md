@@ -2,21 +2,24 @@
 
 **Sengled's original cloud backend is no longer operational. This repository exists to provide fully local alternatives.**
 
-A comprehensive tool for local control and protocol research of Sengled Wi‑Fi bulbs. It can pair bulbs to your own MQTT broker, provides UDP control, and includes firmware flashing capability to install open source firmware like Tasmota.
+A comprehensive tool for local control and protocol research of Sengled Wi‑Fi bulbs. It can pair bulbs to your own MQTT broker, provides UDP control, and includes firmware flashing capability to install open source firmware like Tasmota or WLED.
 
 ## TL;DR (what this repo is)
 
 This repo provides multiple **local control paths** for Sengled Wi‑Fi bulbs. There are three tracks:
 
+> [!TIP]
+> **Start with the Home Assistant integration** - it's the simplest option requiring no flashing or MQTT setup. Only proceed with flashing if you need features not available via local UDP control. If you want Alexa integration without Home Assistant, flash WLED firmware.
+
 - **Home Assistant (recommended for most)**: use the built-in **local UDP** custom integration to add bulbs as `light` entities (no cloud, no flashing). See **[Home Assistant (Local UDP Integration)](#home-assistant-local-udp-integration)**.
 - **CLI tool / protocol research**: use `sengled_tool.py` to send UDP/MQTT commands, pair bulbs to a local broker, and inspect behavior.
-- **Flashing (optional)**: install open firmware (Tasmota/ESPHome) on compatible hardware if you want to completely replace Sengled’s stack. After flashing, bulbs can be controlled directly (Tasmota web UI) and integrate cleanly with Home Assistant (e.g. via Tasmota/MQTT).
+- **Flashing (optional)**: install open firmware (Tasmota/ESPHome/WLED) on compatible hardware if you want to completely replace Sengled's stack. After flashing, bulbs can be controlled directly (web UI) and integrate cleanly with Home Assistant (via Tasmota/MQTT) or Alexa (via WLED Hue emulation).
 
 ## Quick Navigation
 
 - **[Quick Start](#quick-start)** - Easiest setup for most users
 - **[Factory Reset Procedures](docs/RESET_PROCEDURES.md)** - Visual reset steps for devices
-- **[Flashing Information](#flashing-information)** - Flash Tasmota/ESPHome
+- **[Flashing Information](#flashing-information)** - Flash Tasmota/ESPHome/WLED
 - **[Command Reference](#command-reference)** - Complete CLI help and options
 - **[FAQ](#faq)** - Frequently asked questions
 - **[Wi-Fi Setup Sequence](#wi-fi-setup-sequence)** - Technical pairing details
@@ -25,6 +28,12 @@ This repo provides multiple **local control paths** for Sengled Wi‑Fi bulbs. T
 
 
 ## Quick Start
+
+> [!NOTE]
+> Before starting, make sure you have:
+> - A computer on the same WiFi network as the bulb (for local communication)
+> - Python 3.10+ installed (wizard will prompt to install if missing)
+> - Your bulb factory reset and ready to pair
 
 First, clone the repo:
 ```bash
@@ -61,7 +70,10 @@ The wizard will handle TLS certificates, start an embedded MQTT broker, and pair
 
 ## Flashing information
 
-It is possible to reflash compatible Sengled bulbs (see compatibility list) with open-source firmware like [Tasmota](https://tasmota.github.io/) or ESPHome. The process to download an arbitrary firmware involves using a "shim" app known as Sengled-Rescue, which is located in the sengled-ota folder of the project. A compiled version of Sengled-Rescue is located at `firmware/shim.bin`.
+> [!CAUTION]
+> **Flashing firmware carries risk of permanently bricking your bulb.** Only proceed if you understand and accept this risk. The flashing process has been tested with specific bulb models (W31-N15, W31-N11), but other models may not be compatible.
+
+It is possible to reflash compatible Sengled bulbs (see compatibility list) with open-source firmware like [Tasmota](https://tasmota.github.io/), ESPHome, or [WLED](https://kno.wled.ge/). The process to download an arbitrary firmware involves using a "shim" app known as Sengled-Rescue, which is located in the sengled-ota folder of the project. A compiled version of Sengled-Rescue is located at `firmware/shim.bin`.
 
 Once you've completed Wi-Fi pairing and confirmed that sengled_tool.py can communicate with the bulb (sending basic on/off commands), you're ready to proceed. The script will prompt you to flash the firmware.
 
@@ -85,6 +97,9 @@ The **flashing process** has been tested with **W31-N15 and W31-N11** bulbs, whi
 
 ### Currently Known Working Bulbs ✅
 
+> [!IMPORTANT]
+> **Flashing only works with ESP8266EX-based modules** (WF863). Other modules like WF864 (MX1290 chip) or EMW3091 are not flashable via this method, though basic MQTT/UDP control still works.
+
 * **W31-N15** (WiFi multi-color LED) - WF863 Module / Espressif ESP8266EX chip
 * **W31-N11** (WiFi multi-color LED) - WF863 Module
 
@@ -94,7 +109,8 @@ The **flashing process** has been tested with **W31-N15 and W31-N11** bulbs, whi
 * **W21-N13** and **W11-N13** (WiFi multi-color LED) - MXCHIP EMW3091 module / unknown chip
 
 
-> **Tip:** Check the side of your bulb for FCC ID - it contains the ID of the module (or chip) used inside the bulb, matching one of the above. Post an issue if you find a bulb using a supported module that's not listed!
+> [!NOTE]
+> **Check your bulb's FCC ID** - Look on the side of your bulb for the FCC ID. It identifies the module/chip inside and tells you if flashing is supported. Report new working models via GitHub issues!
 
 ---
 
@@ -130,6 +146,46 @@ Quick PWM commands for brightness control in the Tasmota console (for Sengled W3
 - **50%:** `PWM1 512`
 - **100%:** `PWM1 1023`
 
+
+### WLED Firmware
+
+> [!TIP]
+> **Best option for direct Alexa integration** - WLED's Hue emulation lets you control Sengled bulbs through Alexa without any Home Assistant instance or MQTT broker. Perfect if you just want your bulbs working with Alexa.
+
+WLED firmware has been successfully tested and confirmed working on Sengled bulbs with ESP8266EX chips. WLED provides a plug-and-play option with **direct Alexa integration** via Hue emulation, requiring no additional MQTT broker or Home Assistant instance.
+
+**Source:** Based on community testing reported in [issue #37](https://github.com/HamzaETTH/SengledTools/issues/37).
+
+#### WLED Configuration
+
+**LED output mode:** PWM RGBW
+
+#### GPIO Pinouts
+
+##### W31-N15
+```
+GPIO pins: 13, 12, 15, 14
+```
+
+##### W31-N13H
+```
+GPIO pins: 12, 15, 13, 4
+```
+
+#### Setting Up Alexa Integration (Hue Emulation)
+
+1. In WLED, navigate to **Settings → Sync Interfaces → Alexa Voice Assistant**
+2. Enable **"Emulate Alexa device"**
+3. Set the invocation name (what you want the bulb to show as in Alexa)
+4. Click **Save**
+
+Then from your phone:
+1. Open the Alexa app
+2. Select **"Add device"** → **Light**
+3. When asked for manufacturer, select **Philips Hue**
+4. Click **"Yes"** when prompted "Is this device Bluetooth enabled"
+5. Wait for discovery (may take a few minutes)
+6. Your WLED/Sengled bulb should now appear in the Alexa app
 
 
 ## Command Reference
@@ -211,7 +267,8 @@ UDP Control (Local Network):
   --udp-set-color R G B     Set color via UDP (0-255 for each).
   --udp-json UDP_JSON   Send a custom JSON payload via UDP.
 
-⚠️ Untested Commands :
+> [!WARNING]
+> The following group control commands are untested and may not work correctly. Use at your own risk.
   --group-macs GROUP_MACS [GROUP_MACS ...]
                         List of MAC addresses for group control.
   --group-switch {on,off}
@@ -232,19 +289,24 @@ UDP Control (Local Network):
 <details>
 <summary>I'm able to set up the Wifi connection on the bulb, but verification times out.</summary>
 
-This is because your bulb is unable to communicate with the servers running on your computer. Make sure:
+> [!IMPORTANT]
+> **Your bulb cannot communicate with your computer.** This is almost always a network isolation or firewall issue.
 
- - your computer is on the same Wifi network as the bulb
- - the Wifi network has been configured to allow devices to see each other
-   - tip: log into your router at http://192.168.0.1/ to check and modify this setting
- - see if a firewall configuration might be preventing the requests
+Check the following:
+ - Your computer is on the **same WiFi network** as the bulb
+ - Your WiFi network allows devices to see each other (AP isolation disabled)
+   - Log into your router at http://192.168.0.1/ to check this setting
+ - Your firewall isn't blocking the connections
 
-To further troubleshoot, make note of your local IP (which is output by the setup wizard) and then use another device (phone/pc) that's on the same network to visit `http://yourlocalIP:57542/jbalancer/new/bimqtt`. It should return some text output. If it does not, continue troubleshooting network settings until you can access the page.
+**Troubleshooting step:** Visit `http://yourlocalIP:57542/jbalancer/new/bimqtt` from another device on the same network. If it returns text, network is OK. If not, fix network settings first.
 </details>
 
 <details>
 
 <summary>Can I use this with Home Assistant?</summary>
+
+> [!TIP]
+> **Yes, and it's the recommended option!** The local UDP integration requires no cloud, no MQTT broker, and no flashing. Just add the custom component and you're done.
 
 **Yes.** This repo includes a **local-only Home Assistant custom integration** that controls Sengled Wi‑Fi bulbs directly over **UDP** (no cloud).
 
@@ -262,9 +324,14 @@ To further troubleshoot, make note of your local IP (which is output by the setu
 <details>
 <summary>I don't use Home Assistant. Can I still control bulbs?</summary>
 
-**Yes, using the documented MQTT or UDP commands.** The MQTT and HTTP servers are required (see the `--run-servers` option).
+> [!TIP]
+> **For Alexa users:** Flash WLED firmware for direct Alexa integration via Hue emulation. It's plug-and-play with no Home Assistant or MQTT broker needed.
 
-If you flash Tasmota onto the bulbs, you can use the basic web interface to control a bulb.
+Yes, you have options:
+ - **Local UDP/MQTT:** Use the documented MQTT or UDP commands (requires `--run-servers`)
+ - **Tasmota/ESPHome:** Flash open firmware and use the web interface
+ - **WLED:** Flash WLED for direct Alexa control via Hue emulation
+
 </details>
 
 ## Home Assistant (Local UDP Integration)
