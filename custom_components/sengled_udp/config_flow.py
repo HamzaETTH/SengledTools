@@ -245,6 +245,23 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """
 
         def discover_udp() -> list[str]:
+            def infer_subnet_broadcast() -> str | None:
+                """Infer a likely /24 broadcast address from the host's primary IPv4."""
+                try:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    try:
+                        # Doesn't need to be reachable; used to pick the right interface
+                        s.connect(("8.8.8.8", 80))
+                        ip = s.getsockname()[0]
+                    finally:
+                        s.close()
+                    parts = ip.split(".")
+                    if len(parts) == 4:
+                        return ".".join(parts[:3] + ["255"])
+                except Exception:
+                    return None
+                return None
+
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             sock.settimeout(0.3)
@@ -252,7 +269,18 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             seen: set[str] = set()
             try:
                 test_command = json.dumps({"func": "search_devices", "param": {}})
-                sock.sendto(test_command.encode(), ("255.255.255.255", 9080))
+                targets: list[str] = ["255.255.255.255"]
+                subnet_bcast = infer_subnet_broadcast()
+                if subnet_bcast and subnet_bcast not in targets:
+                    targets.append(subnet_bcast)
+
+                # Some environments don't deliver 255.255.255.255 reliably; try both.
+                for _ in range(2):
+                    for addr in targets:
+                        try:
+                            sock.sendto(test_command.encode(), (addr, 9080))
+                        except Exception:
+                            continue
 
                 # Collect responses for a short window
                 end = time.time() + 2.0

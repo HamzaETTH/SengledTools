@@ -31,12 +31,3 @@ Local-only Home Assistant integration for controlling **Sengled Wi‑Fi bulbs ov
 
 - Direct-to-bulb UDP control only — **no MQTT**
 - **Does not pair** the bulb or help it join Wi‑Fi; it assumes the bulb is already on your network
-
-### UDP vs MQTT (limitations)
-
-This integration uses **UDP**, which is great for local/basic control but is a **smaller feature set** than Sengled’s MQTT command surface.
-
-- **UDP (this integration)**: on/off, brightness, RGB (RGB bulbs), color temperature (supported models), basic LAN discovery + status.
-- **MQTT (advanced)**: scenes, special effects, entertainment sync modes, group control, transition/gradient time, device management, and OTA firmware update commands.
-
-See: [`docs/references/MQTT_COMMANDS_REFERENCE.md`](../../docs/references/MQTT_COMMANDS_REFERENCE.md)
