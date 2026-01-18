@@ -1,6 +1,7 @@
 """
-Command handling functionality for Sengled bulbs.
-Handles both UDP and MQTT commands for individual and group control.
+Command handling for Sengled bulb control.
+Handles both UDP and MQTT commands for individual and group control,
+including power, brightness, color, firmware updates, and custom payloads.
 """
 
 import json

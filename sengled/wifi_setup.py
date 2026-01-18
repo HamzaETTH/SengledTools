@@ -1,3 +1,13 @@
+"""
+Wi-Fi setup orchestration for Sengled bulbs.
+Handles the complete setup flow:
+  • UDP handshake with bulb in AP mode
+  • Scanning and selecting Wi-Fi networks
+  • Sending encrypted Wi-Fi credentials
+  • Verifying setup via HTTP endpoints
+  • Listening for bulb attributes via MQTT
+"""
+
 import json
 import time
 import socket

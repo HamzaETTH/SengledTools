@@ -1,3 +1,9 @@
+"""
+MQTT client wrapper for Sengled bulb communication.
+Wraps paho-mqtt with TLS support, handles connection management,
+topic subscription/publishing, and update command delivery.
+"""
+
 import paho.mqtt.client as mqtt
 from typing import Optional
 import time

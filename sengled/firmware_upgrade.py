@@ -1,3 +1,9 @@
+"""
+Firmware upgrade utilities for Sengled bulbs.
+Handles firmware validation, preparation, safety warnings,
+and OTA upgrade command orchestration via MQTT.
+"""
+
 import os
 import shutil
 from sengled.log import section, info, warn, success, stop, firmware_warn

@@ -1,3 +1,9 @@
+"""
+Embedded MQTT broker with TLS support for local Sengled bulb communication.
+Generates CA and server certificates, runs an amqtt broker on port 8883,
+and accepts anonymous connections from bulbs without client certificates.
+"""
+
 import asyncio
 import ssl
 import threading

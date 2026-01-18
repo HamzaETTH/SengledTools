@@ -1,3 +1,9 @@
+"""
+Utility functions for Sengled tool.
+Provides IP/MAC address detection, configuration file management,
+MAC address normalization, and timestamp generation.
+"""
+
 import json
 import socket
 import time

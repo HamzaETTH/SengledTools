@@ -1,5 +1,6 @@
 """
 Shared constants for the Sengled local control tool.
+Contains network settings, port configurations, and device compatibility matrices.
 """
 
 # Static IP of the bulb when it's in AP mode for initial setup.

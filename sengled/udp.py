@@ -1,3 +1,9 @@
+"""
+UDP protocol implementation for direct Sengled bulb control.
+Sends JSON commands to bulbs on port 9080 for power, brightness,
+color, and other settings without requiring MQTT infrastructure.
+"""
+
 import json
 import socket
 import time

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Sengled Wi-Fi Setup Crypto Library
-Handles RC4 encryption for local Wi-Fi setup communication with Sengled bulbs.
-Extracted from sengled_tool.py for modular use.
+RC4 encryption for Sengled Wi-Fi setup communication.
+Implements the same RC4 algorithm used by the Sengled mobile app
+to encrypt/decrypt local Wi-Fi configuration payloads sent to bulbs.
 """
 
 import base64

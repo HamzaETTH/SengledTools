@@ -1,3 +1,9 @@
+"""
+Logging and CLI output formatting utilities.
+Provides styled console output with emoji support, indentation control,
+and configurable verbosity levels for user-friendly terminal interaction.
+"""
+
 import logging
 import os
 import platform

@@ -1,3 +1,11 @@
+"""
+Lightweight HTTP server used during Sengled Wi-Fi setup.
+Serves two endpoints bulbs call:
+  • /life2/device/accessCloud.json
+  • /jbalancer/new/bimqtt
+Also serves firmware files (.bin) for OTA updates.
+"""
+
 import json
 import os
 import socket
