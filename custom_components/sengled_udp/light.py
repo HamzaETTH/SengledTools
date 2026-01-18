@@ -84,6 +84,7 @@ class SengledLight(LightEntity):
         self._color_temp_kelvin = None
         self._color_mode = ColorMode.RGB
         self._available = True
+        self._optimistic_power = False
         # None = not yet detected. If provided (from config flow), we can set capabilities immediately.
         if host_type == "rgb":
             self._is_rgb = True
@@ -100,6 +101,10 @@ class SengledLight(LightEntity):
             self._color_mode = ColorMode.BRIGHTNESS
             self._rgb_color = None
             self._color_temp_kelvin = None
+            # Some white-only models do not expose a reliable power-state in UDP queries
+            # (they keep reporting last brightness even when switched off). Mark assumed.
+            self._attr_assumed_state = True
+            self._optimistic_power = True
         else:
             self._attr_color_mode = ColorMode.RGB
             self._attr_supported_color_modes = {ColorMode.RGB, ColorMode.COLOR_TEMP}
@@ -157,6 +162,8 @@ class SengledLight(LightEntity):
             self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
             self._attr_color_mode = ColorMode.BRIGHTNESS
             self._color_mode = ColorMode.BRIGHTNESS
+            self._attr_assumed_state = True
+            self._optimistic_power = True
             _LOGGER.debug("Detected white-only bulb: %s (%s)", self._attr_name, self._host)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
@@ -257,15 +264,62 @@ class SengledLight(LightEntity):
         try:
             # White-only bulbs: simpler state update
             if self._is_rgb is False:
-                w_value = status.get("W", {}).get("value", 0)
-                w_freq = status.get("W", {}).get("freq", 1)
-                self._is_on = w_freq == 0
+                # Some white-only models (e.g. W21-N11) report a constant freq (like 8000)
+                # that does NOT map to on/off. Prefer get_device_brightness when available.
+                w_obj = status.get("W") or status.get("w") or {}
+                w_value = (w_obj or {}).get("value", 0)
+                w_freq = (w_obj or {}).get("freq")
 
+                device_brightness_percent: int | None = None
                 if brightness_info and "brightness" in brightness_info:
-                    device_brightness = brightness_info["brightness"]
-                    self._brightness = min(255, int((device_brightness / 100) * 255))
+                    try:
+                        device_brightness_percent = int(brightness_info["brightness"])
+                    except (TypeError, ValueError):
+                        device_brightness_percent = None
+
+                # Determine on/off robustly:
+                # - If freq explicitly reports 0, treat as on (older firmwares).
+                # - Else if we have brightness percent, brightness>0 => on.
+                # - Else fall back to W.value>0 (best-effort).
+                if w_freq == 0:
+                    self._is_on = True
+                elif device_brightness_percent is not None:
+                    # NOTE: some models keep reporting last brightness when switched off.
+                    # Only use brightness to force OFF (brightness==0). Never force ON.
+                    if device_brightness_percent == 0:
+                        self._is_on = False
+                    elif not self._optimistic_power:
+                        self._is_on = True
                 else:
-                    self._brightness = min(255, int((w_value / 100) * 255)) if self._is_on else 0
+                    # W.value is typically 0-100 on white-only models
+                    try:
+                        w_percent = int(w_value)
+                    except (TypeError, ValueError):
+                        w_percent = None
+
+                    if w_percent == 0:
+                        self._is_on = False
+                    elif w_percent is not None and not self._optimistic_power:
+                        self._is_on = True
+                    elif w_percent is None and not self._optimistic_power:
+                        self._is_on = bool(w_value)
+
+                if device_brightness_percent is not None:
+                    self._brightness = min(
+                        255, max(0, int((device_brightness_percent / 100) * 255))
+                    )
+                else:
+                    # Fall back to W.value as 0-100 percent if it looks like it.
+                    try:
+                        w_percent2 = int(w_value)
+                    except (TypeError, ValueError):
+                        w_percent2 = None
+
+                    if w_percent2 is not None and 0 <= w_percent2 <= 100:
+                        self._brightness = min(255, max(0, int((w_percent2 / 100) * 255)))
+                    else:
+                        # Don't clobber last brightness if we couldn't parse.
+                        self._brightness = self._brightness if self._is_on else 0
 
                 self._color_mode = ColorMode.BRIGHTNESS
                 self._available = True
