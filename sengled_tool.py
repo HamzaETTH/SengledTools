@@ -275,8 +275,8 @@ class SengledTool:
         section("Flashing")
         info("")
         subsection("Flashing Compatibility")
-        info(f"Model: {model}",  extra_indent=4)
-        info(f"Module: {module}",  extra_indent=4)
+        cmd(f"Model: {model}",  extra_indent=4)
+        cmd(f"Module: {module}",  extra_indent=4)
 
         # Hard gate for non-supported unless overridden
         if category == "supported":

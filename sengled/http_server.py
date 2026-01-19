@@ -74,10 +74,17 @@ class SetupHTTPServer:
                 count = self._should_count_hit(ip)
 
                 if parsed_url.path == "/life2/device/accessCloud.json":
-                    # Historically seen as POST/PUT. Respond to GET for convenience but do not count it.
+                    # Respond to GET for convenience but do not count it.
                     if count and method in ("POST", "PUT"):
                         outer._hit_access_cloud.set()
                         outer._hit_access_cloud_ip = ip
+                        # If both endpoints have been hit from the same IP, record it immediately.
+                        if (
+                            outer._hit_bimqtt.is_set()
+                            and outer._hit_bimqtt_ip is not None
+                            and outer._hit_bimqtt_ip == outer._hit_access_cloud_ip
+                        ):
+                            outer.last_client_ip = outer._hit_access_cloud_ip
                     self._send_json(
                         {
                             "messageCode": "200",
@@ -86,7 +93,7 @@ class SetupHTTPServer:
                             "success": True,
                         }
                     )
-                    success(f"Served {method} on /life2/device/accessCloud.json")
+                    success(f"Served {method} on /life2/device/accessCloud.json", extra_indent=4)
                     return True
 
                 if parsed_url.path == "/jbalancer/new/bimqtt":
@@ -94,6 +101,13 @@ class SetupHTTPServer:
                     if count and method in ("GET", "POST"):
                         outer._hit_bimqtt.set()
                         outer._hit_bimqtt_ip = ip
+                        # If both endpoints have been hit from the same IP, record it immediately.
+                        if (
+                            outer._hit_access_cloud.is_set()
+                            and outer._hit_access_cloud_ip is not None
+                            and outer._hit_access_cloud_ip == outer._hit_bimqtt_ip
+                        ):
+                            outer.last_client_ip = outer._hit_bimqtt_ip
                     self._send_json(
                         {
                             "protocal": "mqtt",
@@ -101,7 +115,7 @@ class SetupHTTPServer:
                             "port": outer.mqtt_port,
                         }
                     )
-                    success(f"Served {method} on /jbalancer/new/bimqtt")
+                    success(f"Served {method} on /jbalancer/new/bimqtt", extra_indent=4)
                     return True
 
                 return False

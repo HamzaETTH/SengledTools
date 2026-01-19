@@ -140,7 +140,9 @@ def run_wifi_setup(
 	try:
 		input(
 			"Press Enter to start bulb discovery (Ctrl+C to cancel)...\n"
-			"Tip: if you're not already connected to the bulb's Wi‑Fi, connect to it now — this will keep retrying until the bulb responds.\n"
+			"\n"
+			"    Tip: if you're not already connected to the bulb's Wi‑Fi, connect to it now — this will keep retrying until the bulb responds.\n"
+			"         Disconnecting and reconnecting to the bulb's Wi‑Fi can help too.\n"
 		)
 		from sengled.log import waiting as _waiting
 		_waiting("Waiting for bulb response (make sure you're on the bulb's Wi‑Fi)...")
@@ -186,7 +188,7 @@ def run_wifi_setup(
 						return None, None, None
 
 					s.settimeout(15)
-					success(f"Connected to bulb MAC: {bulb_mac}")
+					success(f"Connected to bulb MAC: {bulb_mac}", extra_indent=4)
 					time.sleep(1)
 					info("")
 
@@ -305,7 +307,13 @@ def run_wifi_setup(
 								for i, router in enumerate(routers):
 									ssid = router.get('ssid','')
 									pad = " " * max(1, max_len - len(ssid) + 2)
-									signal_bars = "▂▄▆█"[0:min(int(router.get("signal", 0)), 4)]
+									# Ensure low/zero signal still shows at least one bar
+									try:
+										_signal = int(router.get("signal", 0) or 0)
+									except (TypeError, ValueError):
+										_signal = 0
+									_level = max(1, min(_signal, 4))
+									signal_bars = "▂▄▆█"[:_level]
 									info(f"[{i+1}] {ssid}{pad}{signal_bars}")
 
 							# Prompt slightly less indented than items
@@ -466,7 +474,7 @@ def run_wifi_setup(
 					from sengled.log import set_indent as _si
 					_si(0)
 					section("Verification")
-					waiting("Waiting for bulb to verify setup endpoints, the bulb will be flashing...")
+					waiting("Waiting for bulb to verify setup endpoints, the bulb will be flashing... make sure no firewall is blocking the connections")
 					if is_verbose():
 						info("Expected endpoints: /life2/device/accessCloud.json and /jbalancer/new/bimqtt")
 					
@@ -483,7 +491,10 @@ def run_wifi_setup(
 					support_info = None
 
 					if both_hit:
-						success(f"Bulb at {client_ip} contacted both endpoints", extra_indent=2)
+						if client_ip:
+							success(f"Bulb at {client_ip} contacted both endpoints", extra_indent=2)
+						else:
+							success("Bulb contacted both endpoints", extra_indent=2)
 							
 						# Listen for bulb attributes
 						mqtt_client = create_mqtt_client(args, mqtt_host_for_bulb, mqtt_port_for_bulb)

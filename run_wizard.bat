@@ -17,8 +17,8 @@ if not exist ".venv\Scripts\python.exe" (
 
 :: Run the wizard
 echo Starting Sengled WiFi Bulb setup wizard...
-.venv\Scripts\python.exe sengled_tool.py
+.venv\Scripts\python.exe sengled_tool.py %*
+set EXITCODE=%ERRORLEVEL%
 
 echo.
-pause
-exit /b 0
+exit /b %EXITCODE%
