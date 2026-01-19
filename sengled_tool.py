@@ -58,7 +58,7 @@ from sengled.constants import BULB_IP, BULB_PORT, DEFAULT_BROKER_PORT
 from sengled.command_handler import CommandHandler
 
 
-def _print_post_pairing_summary(bulb_mac: str, udp_target_ip: Optional[str]):
+def _print_post_pairing_summary(bulb_mac: str, udp_target_ip: Optional[str], http_port: Optional[int] = None):
     section("Pairing Setup Complete")
     info("")
     info("You should now be able to control the bulb with UDP/MQTT commands in another terminal")
@@ -67,11 +67,18 @@ def _print_post_pairing_summary(bulb_mac: str, udp_target_ip: Optional[str]):
         cmd(f"python sengled_tool.py --ip {udp_target_ip} --udp-on", extra_indent=4)
     cmd(f"python sengled_tool.py --mac {bulb_mac} --on", extra_indent=4)
     cmd(f"python sengled_tool.py --mac {bulb_mac} --reset", extra_indent=4)
-    
+
+    # Add info message about --run-servers
+    info("")
+    run_servers_cmd = "python sengled_tool.py --run-servers"
+    if http_port and http_port != 57542:
+        run_servers_cmd += f" --http-port {http_port}"
+    info(f"If you quit the wizard and want to keep controlling the bulb use {run_servers_cmd}")
+
     success("HTTP server ready for firmware updates")
 
 
-def _print_final_summary_and_hold(bulb_mac: str, udp_target_ip: Optional[str]):
+def _print_final_summary_and_hold(bulb_mac: str, udp_target_ip: Optional[str], http_port: Optional[int] = None):
     """Prints the final summary for Wi-Fi setup and holds until user input."""
     success("Wi-Fi setup complete.")
     info("")
@@ -79,7 +86,10 @@ def _print_final_summary_and_hold(bulb_mac: str, udp_target_ip: Optional[str]):
         "You can control the bulb as long as the script is running, "
         "if stopped you can resume control with:"
     )
-    cmd("python sengled_tool.py --run-servers (and wait for up to a minute for the bulb to reconnect)")
+    run_servers_cmd = "python sengled_tool.py --run-servers"
+    if http_port and http_port != 57542:
+        run_servers_cmd += f" --http-port {http_port}"
+    cmd(f"{run_servers_cmd} (and wait for up to a minute for the bulb to reconnect)")
     info("")
 
     subsection("Example Commands")
@@ -250,12 +260,19 @@ class SengledTool:
             last_client_ip = getattr(setup_server, "last_client_ip", None)
             support_info = getattr(setup_server, "support_info", None)
 
+        # Extract HTTP port from args or setup_server
+        http_port = getattr(self.args, "http_port", None)
+        if setup_server and hasattr(setup_server, "port"):
+            http_port = setup_server.port
+
         # Show immediate next steps for control
-        _print_post_pairing_summary(bulb_mac, last_client_ip)
+        _print_post_pairing_summary(bulb_mac, last_client_ip, http_port)
         category = (support_info or {}).get("category", "unknown")
         model = (support_info or {}).get("model", "Unknown")
         module = (support_info or {}).get("module", "Unknown")
 
+        info("")
+        section("Flashing")
         info("")
         subsection("Flashing Compatibility")
         info(f"Model: {model}",  extra_indent=4)
@@ -284,13 +301,23 @@ class SengledTool:
             return
 
         if choice not in ("y", "yes"):
-            info("Skipping firmware upgrade. You can flash later using --upgrade or by using the wizard flow (after a reset)")
+            info("Skipping firmware upgrade. You can flash later using --upgrade or by running the wizard again (after a reset)")
+            # Wait for user input before stopping servers
+            try:
+                input("Press any key to quit . . .")
+            except KeyboardInterrupt:
+                pass
             self._stop_servers(setup_server)
             return
 
         # If user insists and we previously flagged not_supported, warn again unless forced
         if category == "not_supported" and not getattr(self.args, "force_flash", False):
             stop("Flashing blocked due to unsupported device. Use --force-flash to override.")
+            # Wait for user input before stopping servers
+            try:
+                input("Press any key to quit . . .")
+            except KeyboardInterrupt:
+                pass
             self._stop_servers(setup_server)
             return
 
@@ -298,6 +325,11 @@ class SengledTool:
         client = self.create_mqtt_client()
         if not client.connect():
             warn("Failed to connect to MQTT broker for firmware upgrade.")
+            # Wait for user input before stopping servers
+            try:
+                input("Press any key to quit . . .")
+            except KeyboardInterrupt:
+                pass
             self._stop_servers(setup_server)
             return
         try:
@@ -306,6 +338,11 @@ class SengledTool:
             try:
                 client.disconnect()
             except Exception:
+                pass
+            # Wait for user input before stopping servers
+            try:
+                input("Press any key to quit . . .")
+            except KeyboardInterrupt:
                 pass
             self._stop_servers(setup_server)
 
@@ -687,7 +724,8 @@ def main():
                     last_bulb_ip = getattr(meta, "last_client_ip", None)
                     server_to_stop = meta if hasattr(meta, "stop") else None
 
-                _print_final_summary_and_hold(bulb_mac, last_bulb_ip)
+                http_port = getattr(args, "http_port", None)
+                _print_final_summary_and_hold(bulb_mac, last_bulb_ip, http_port)
                 if not using_external:
                     tool._stop_servers(server_to_stop)
             else:
