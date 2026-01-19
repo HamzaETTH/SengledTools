@@ -138,9 +138,12 @@ def run_wifi_setup(
 	waiting("Connect to bulb's 'Sengled_Wi-Fi Bulb_XXXXXX' network")
 	print("")
 	try:
-		input("Press Enter to continue — you can connect to your bulb's Wi-Fi before or after (Ctrl+C to cancel)...")
+		input(
+			"Press Enter to start bulb discovery (Ctrl+C to cancel)...\n"
+			"Tip: if you're not already connected to the bulb's Wi‑Fi, connect to it now — this will keep retrying until the bulb responds.\n"
+		)
 		from sengled.log import waiting as _waiting
-		_waiting("Looking for bulb...")
+		_waiting("Waiting for bulb response (make sure you're on the bulb's Wi‑Fi)...")
 	except KeyboardInterrupt:
 		print("")  # New line after Ctrl+C
 		warn_("Setup cancelled by user")
@@ -454,10 +457,10 @@ def run_wifi_setup(
 
 					if interactive:
 						save_bulb(bulb_mac, lan_ip)
-						success(f"Wi-Fi setup complete for {bulb_mac}", extra_indent=6)
+						success(f"Wi-Fi credentials saved for {bulb_mac}", extra_indent=6)
 					else:
 						save_bulb(bulb_mac, lan_ip)
-						success(f"Wi-Fi setup complete for {bulb_mac}", extra_indent=6)
+						success(f"Wi-Fi credentials saved for {bulb_mac}", extra_indent=6)
 
 					# 8) Wait for the bulb to contact both endpoints, then keep server running
 					from sengled.log import set_indent as _si

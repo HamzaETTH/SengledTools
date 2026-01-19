@@ -32,7 +32,7 @@ This repo provides multiple **local control paths** for Sengled Wi‑Fi bulbs. T
 > [!NOTE]
 > Before starting, make sure you have:
 > - A computer on the same WiFi network as the bulb (for local communication)
-> - Python 3.10+ installed (wizard will prompt to install if missing)
+> - Python 3.10+ installed
 > - Your bulb factory reset and ready to pair
 
 First, clone the repo:
@@ -43,7 +43,7 @@ cd SengledTools
 
 ### 1. Prepare the Bulb
 1. **Factory Reset the Bulb**: Flick the power switch rapidly 5+ times until the bulb flashes. See [Factory Reset Procedures](docs/RESET_PROCEDURES.md) for details.
-2. **Connect to Bulb's AP**: Join the `Sengled_Wi‑Fi Bulb_XXXXXX` Wi-Fi network from your computer.
+2. **Have the bulb ready to pair**: You can connect to the bulb's AP (`Sengled_Wi‑Fi Bulb_XXXXXX`) now, or you can start the wizard first and connect when it tells you to.
 
 ### 2. Launch the Wizard
 
@@ -65,7 +65,7 @@ python sengled_tool.py --setup-wifi
 ```
 
 ### 3. Follow on-screen prompts
-The wizard will handle TLS certificates, start an embedded MQTT broker, and pair your bulb.
+Follow the prompts — when asked, switch your PC to the bulb's Wi‑Fi (`Sengled_Wi‑Fi Bulb_XXXXXX`) and the wizard will continue.
 
 
 ## Flashing information

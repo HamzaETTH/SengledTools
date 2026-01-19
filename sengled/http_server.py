@@ -40,6 +40,8 @@ class SetupHTTPServer:
         self._hit_access_cloud = threading.Event()
         self._hit_bimqtt = threading.Event()
         self.last_client_ip: Optional[str] = None
+        self._hit_access_cloud_ip: Optional[str] = None
+        self._hit_bimqtt_ip: Optional[str] = None
         self.active: bool = False
         # Firmware download tracking
         self._firmware_served = threading.Event()
@@ -49,6 +51,13 @@ class SetupHTTPServer:
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
+            def _client_ip(self) -> str:
+                return str(self.client_address[0])
+
+            def _should_count_hit(self, ip: str) -> bool:
+                # Don't let local manual testing (curl/browser) satisfy verification.
+                return ip not in ("127.0.0.1", "::1")
+
             def _send_json(self, data: dict):
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -58,13 +67,17 @@ class SetupHTTPServer:
                 self.wfile.write(payload)
                 debug(f"sent: {payload}")
 
-            def _handle_endpoint(self, method: str):
-                """Handle bulb endpoints for both GET and POST methods."""
+            def _handle_endpoint(self, method: str) -> bool:
+                """Handle bulb endpoints. Respond for GET/POST/PUT; only COUNT hits for expected methods."""
                 parsed_url = urlparse(self.path)
+                ip = self._client_ip()
+                count = self._should_count_hit(ip)
 
                 if parsed_url.path == "/life2/device/accessCloud.json":
-                    outer.last_client_ip = self.client_address[0]
-                    outer._hit_access_cloud.set()
+                    # Historically seen as POST/PUT. Respond to GET for convenience but do not count it.
+                    if count and method in ("POST", "PUT"):
+                        outer._hit_access_cloud.set()
+                        outer._hit_access_cloud_ip = ip
                     self._send_json(
                         {
                             "messageCode": "200",
@@ -77,8 +90,10 @@ class SetupHTTPServer:
                     return True
 
                 if parsed_url.path == "/jbalancer/new/bimqtt":
-                    outer.last_client_ip = self.client_address[0]
-                    outer._hit_bimqtt.set()
+                    # Historically seen as GET (sometimes POST). Do not count PUT.
+                    if count and method in ("GET", "POST"):
+                        outer._hit_bimqtt.set()
+                        outer._hit_bimqtt_ip = ip
                     self._send_json(
                         {
                             "protocal": "mqtt",
@@ -104,6 +119,19 @@ class SetupHTTPServer:
 
                 self.send_error(404, "Not Found")
 
+            def do_PUT(self):  # noqa: N802 (stdlib signature)
+                length = int(self.headers.get("Content-Length", 0) or 0)
+                _ = self.rfile.read(length) if length > 0 else b""
+
+                debug(
+                    f"Received PUT request on {self.path} from {self.client_address[0]}"
+                )
+
+                if self._handle_endpoint("PUT"):
+                    return
+
+                self.send_error(404, "Not Found")
+
             def do_GET(self):
                 debug(f"Received GET request on {self.path} from {self.client_address[0]}")
                 parsed_url = urlparse(self.path)
@@ -113,13 +141,18 @@ class SetupHTTPServer:
                     return
 
                 if parsed_url.path == "/status":
+                    both_hit = (
+                        outer._hit_access_cloud.is_set()
+                        and outer._hit_bimqtt.is_set()
+                        and outer._hit_access_cloud_ip is not None
+                        and outer._hit_access_cloud_ip == outer._hit_bimqtt_ip
+                    )
+                    if both_hit:
+                        outer.last_client_ip = outer._hit_access_cloud_ip
                     self._send_json(
                         {
                             "last_client_ip": outer.last_client_ip,
-                            "hit_both_points": (
-                                outer._hit_access_cloud.is_set()
-                                and outer._hit_bimqtt.is_set()
-                            ),
+                            "hit_both_points": both_hit,
                         }
                     )
                     return
@@ -127,6 +160,8 @@ class SetupHTTPServer:
                     outer._hit_bimqtt.clear()
                     outer._hit_access_cloud.clear()
                     outer.last_client_ip = None
+                    outer._hit_access_cloud_ip = None
+                    outer._hit_bimqtt_ip = None
                     self._send_json(
                         {
                             "reset": "success"
