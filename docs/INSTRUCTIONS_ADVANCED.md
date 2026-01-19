@@ -80,7 +80,7 @@ The bulb will automatically reconnect to your broker once the servers are runnin
 
 ## Start Mosquitto
 
-The example config [mosquitto.conf](mosquitto.conf) is set up for TLS on 8883 and references the tool’s certs path. Run it from the `docs/examples` directory, or pass the absolute path.
+The example config [mosquitto.conf](examples/mosquitto.conf) is set up for TLS on 8883 and references the tool's certs path. Run it from the `docs/examples` directory, or pass the absolute path.
 
 Windows:
 
