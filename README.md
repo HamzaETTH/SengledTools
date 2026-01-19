@@ -1,8 +1,8 @@
-# Sengled Wi-Fi Bulb Local Control & Setup Tool
+# Sengled Wi-Fi Bulbs - Home Assistant Integration & Local Control
 
 **Sengled's original cloud backend is no longer operational. This repository exists to provide fully local alternatives.**
 
-A comprehensive tool for local control and protocol research of Sengled Wi‑Fi bulbs. It can pair bulbs to your own MQTT broker, provides UDP control, and includes firmware flashing capability to install open source firmware like Tasmota or WLED.
+A comprehensive tool for local control of Sengled Wi‑Fi bulbs. Includes a **Home Assistant custom integration** (local UDP control), can pair bulbs to your own MQTT broker, and includes firmware flashing capability to install open source firmware like Tasmota or WLED.
 
 ## TL;DR (what this repo is)
 
