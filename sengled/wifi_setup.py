@@ -190,57 +190,81 @@ def run_wifi_setup(
 					# Resolve MQTT target
 					mqtt_host_for_bulb: str
 					mqtt_port_for_bulb: int
-					if _probe_server("127.0.0.1", 8883):
-						info("MQTT server port 8883 is already listening. We'll use the running instance.")
-						mqtt_host_for_bulb = local_wifi_ip
-						mqtt_port_for_bulb = 8883
-						_embedded_broker = None
+					if _embedded_broker and _embedded_broker.is_running.is_set():
+						info("Embedded MQTT broker is already running (this session).")
+						mqtt_host_for_bulb = lan_ip_before_ap
+						mqtt_port_for_bulb = BROKER_TLS_PORT
 					else:
-						if getattr(args, "broker_ip", None):
-							# External broker is specified
-							mqtt_host_for_bulb = args.broker_ip
-							mqtt_port_for_bulb = getattr(args, "broker_port", BROKER_TLS_PORT)
-							success(
-								f"Using external MQTT broker: {mqtt_host_for_bulb}:{mqtt_port_for_bulb}"
-							)
+						if _probe_server("127.0.0.1", 8883):
+							info("Detected MQTT server on 127.0.0.1:8883. Using the running instance.")
+							mqtt_host_for_bulb = local_wifi_ip
+							mqtt_port_for_bulb = 8883
 							_embedded_broker = None
 						else:
-							# No external broker, start the embedded one
-							try:
-								_embedded_broker = EmbeddedBroker(
-									Path.home() / ".sengled" / "certs",
-									verbose=getattr(args, "verbose", False),
-								)
-								_embedded_broker.start()
-								# Use LAN IP captured before AP switch so bulb can reach us on home network
-								mqtt_host_for_bulb = lan_ip_before_ap
-								mqtt_port_for_bulb = BROKER_TLS_PORT
+							if getattr(args, "broker_ip", None):
+								# External broker is specified
+								mqtt_host_for_bulb = args.broker_ip
+								mqtt_port_for_bulb = getattr(args, "broker_port", BROKER_TLS_PORT)
 								success(
-									f"MQTT broker running on {lan_ip}:{BROKER_TLS_PORT} (TLS)",
-									extra_indent=4,
+									f"Using external MQTT broker: {mqtt_host_for_bulb}:{mqtt_port_for_bulb}"
 								)
-							except Exception as e:
-								warn_(str(e)) # Display the clean message from the broker
-								info(
-									"If you are running a custom broker, use the --broker-ip and --broker-port arguments."
-								)
-								return None, None
+								_embedded_broker = None
+							else:
+								# No external broker, start the embedded one
+								try:
+									_embedded_broker = EmbeddedBroker(
+										Path.home() / ".sengled" / "certs",
+										verbose=getattr(args, "verbose", False),
+									)
+									_embedded_broker.start()
+									# Use LAN IP captured before AP switch so bulb can reach us on home network
+									mqtt_host_for_bulb = lan_ip_before_ap
+									mqtt_port_for_bulb = BROKER_TLS_PORT
+									success(
+										f"MQTT broker running on {lan_ip}:{BROKER_TLS_PORT} (TLS)",
+										extra_indent=4,
+									)
+								except Exception as e:
+									warn_(str(e)) # Display the clean message from the broker
+									info(
+										"If you are running a custom broker, use the --broker-ip and --broker-port arguments."
+									)
+									return None, None
 
-					if _probe_server("127.0.0.1", 57542):
-						info("HTTP server port 57542 is already listening. We'll use the running instance.")
-						preferred_http_port = 57542
+					if setup_server and setup_server.active:
+						info("HTTP server is already running (this session).")
+						preferred_http_port = setup_server.port or 57542
 						server_started = True
-						using_external_http_server = True
-					else:
-						# Start HTTP server for endpoints
-						preferred_http_port = int(getattr(args, "http_port", 57542) or 57542)
-						setup_server = SetupHTTPServer(
-							mqtt_host=mqtt_host_for_bulb,
-							mqtt_port=mqtt_port_for_bulb,
-							preferred_port=preferred_http_port,
-						)
-						server_started = setup_server.start()
 						using_external_http_server = False
+					else:
+						# Get preferred port from args
+						preferred_http_port = int(getattr(args, "http_port", 57542) or 57542)
+						
+						# Check if port is already in use (external instance)
+						if _probe_server("127.0.0.1", preferred_http_port):
+							info(f"Detected HTTP server on 127.0.0.1:{preferred_http_port}. Using the running instance.")
+							server_started = True
+							using_external_http_server = True
+						else:
+							# Try to start HTTP server for endpoints
+							setup_server = SetupHTTPServer(
+								mqtt_host=mqtt_host_for_bulb,
+								mqtt_port=mqtt_port_for_bulb,
+								preferred_port=preferred_http_port,
+							)
+							server_started = setup_server.start()
+							if not server_started:
+								# Port might be busy - check again and assume external instance
+								if _probe_server("127.0.0.1", preferred_http_port):
+									info(f"HTTP server port {preferred_http_port} is busy. Assuming external instance.")
+									server_started = True
+									using_external_http_server = True
+								else:
+									# Actual failure, not just port busy
+									warn_("HTTP server failed to start. Setup cannot continue.")
+									return None, None, None
+							else:
+								using_external_http_server = False
 
 					if _embedded_broker:
 						setattr(setup_server, "embedded_broker", _embedded_broker)
@@ -491,27 +515,47 @@ def run_wifi_setup(
 								mqtt_client.disconnect()
 						else:
 							warn_("Could not connect to MQTT broker to retrieve attributes.")
+						
+						# Reset external HTTP server
+						if using_external_http_server:
+							fetch_status("http://127.0.0.1:57542/reset")
+
+						# 9) Try UDP until both OFF and ON succeed; report elapsed time
+						if server_started:
+							info("")  # Add blank line before UDP test
+							try:
+								udp_target_ip = client_ip or BULB_IP
+								if client_ip:
+									_ok = udp_toggle_until_success(udp_target_ip, max_wait_seconds=60)
+									if not _ok:
+										_print_udp_failure_warning(bulb_mac)
+							except Exception:
+								_print_udp_failure_warning(bulb_mac)
+						else:
+							warn_("HTTP server was not started (port busy). Skipping UDP test.")
 					else:
-						warn_("Timeout waiting for endpoints")
-
-
-					# Reset external HTTP server
-					if using_external_http_server:
-						fetch_status("http://127.0.0.1:57542/reset")
-
-					# 9) Try UDP until both OFF and ON succeed; report elapsed time
-					if server_started:
-						info("")  # Add blank line before UDP test
-						try:
-							udp_target_ip = client_ip or BULB_IP
-							if client_ip:
-								_ok = udp_toggle_until_success(udp_target_ip, max_wait_seconds=60)
-								if not _ok:
-									_print_udp_failure_warning(bulb_mac)
-						except Exception:
-							_print_udp_failure_warning(bulb_mac)
-					else:
-						warn_("HTTP server was not started (port busy). Skipping UDP test.")
+						# Endpoint verification failed - treat as fatal
+						from sengled.log import stop as _stop
+						_stop("Wi-Fi setup failed: Bulb did not contact required endpoints.")
+						info("The bulb may not have connected to your Wi-Fi network, or cannot reach the HTTP server.")
+						info("Check:")
+						info("  - Bulb is connected to your Wi-Fi network")
+						info("  - Firewall allows connections on port 57542 (or your --http-port)")
+						info("  - Your PC and bulb are on the same network")
+						
+						# Reset external HTTP server before exiting
+						if using_external_http_server:
+							fetch_status("http://127.0.0.1:57542/reset")
+						
+						# Clean up and return failure
+						if setup_server and setup_server.active:
+							setup_server.stop()
+						if _embedded_broker is not None:
+							try:
+								_embedded_broker.stop()
+							except Exception:
+								pass
+						return None, None, None
 
 					break
 			except (socket.timeout, ConnectionResetError, OSError):

@@ -58,13 +58,8 @@ class SetupHTTPServer:
                 self.wfile.write(payload)
                 debug(f"sent: {payload}")
 
-            def do_POST(self):  # noqa: N802 (stdlib signature)
-                length = int(self.headers.get("Content-Length", 0) or 0)
-                _ = self.rfile.read(length) if length > 0 else b""
-
-                debug(
-                    f"Received PUT request on {self.path} from {self.client_address[0]}"
-                )
+            def _handle_endpoint(self, method: str):
+                """Handle bulb endpoints for both GET and POST methods."""
                 parsed_url = urlparse(self.path)
 
                 if parsed_url.path == "/life2/device/accessCloud.json":
@@ -78,15 +73,8 @@ class SetupHTTPServer:
                             "success": True,
                         }
                     )
-                    success(f"Served POST on /life2/device/accessCloud.json")
-                    return
-
-
-                self.send_error(404, "Not Found")
-
-            def do_GET(self):
-                debug(f"Received GET request on {self.path} from {self.client_address[0]}")
-                parsed_url = urlparse(self.path)
+                    success(f"Served {method} on /life2/device/accessCloud.json")
+                    return True
 
                 if parsed_url.path == "/jbalancer/new/bimqtt":
                     outer.last_client_ip = self.client_address[0]
@@ -98,7 +86,30 @@ class SetupHTTPServer:
                             "port": outer.mqtt_port,
                         }
                     )
-                    success(f"Served GET on /jbalancer/new/bimqtt")
+                    success(f"Served {method} on /jbalancer/new/bimqtt")
+                    return True
+
+                return False
+
+            def do_POST(self):  # noqa: N802 (stdlib signature)
+                length = int(self.headers.get("Content-Length", 0) or 0)
+                _ = self.rfile.read(length) if length > 0 else b""
+
+                debug(
+                    f"Received POST request on {self.path} from {self.client_address[0]}"
+                )
+                
+                if self._handle_endpoint("POST"):
+                    return
+
+                self.send_error(404, "Not Found")
+
+            def do_GET(self):
+                debug(f"Received GET request on {self.path} from {self.client_address[0]}")
+                parsed_url = urlparse(self.path)
+
+                # Handle bulb endpoints (both GET and POST supported)
+                if self._handle_endpoint("GET"):
                     return
 
                 if parsed_url.path == "/status":
