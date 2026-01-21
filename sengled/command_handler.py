@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from .log import warn, info, step, debug, say, success, result
+from .log import warn, info, step, debug, say, success, result, section, subsection
 from .mqtt_client import (
     MQTTClient,
     send_update_command,
@@ -23,6 +23,7 @@ from .utils import (
 )
 from .http_server import SetupHTTPServer
 from .udp import send_udp_command
+from .diagnose import Diagnostics
 from .firmware_upgrade import (
     prepare_firmware_bin,
     print_upgrade_safety_warning,
@@ -194,11 +195,19 @@ class CommandHandler:
             except json.JSONDecodeError:
                 warn("Invalid JSON for --udp-json")
                 sys.exit(2)
+        elif self.args.udp_diagnose:
+            self.handle_udp_diagnose()
         else:
             warn(
-                "--ip requires a UDP command (--udp-on, --udp-off, --udp-set-brightness, --udp-get-brightness, --udp-set-color, --udp-get-adc, --udp-get-mac, --udp-set-factory-mode, --udp-get-factory-mode, --udp-get-software-version, --udp-set-colortemp, --udp-set-pwm, --udp-search-devices, --udp-reboot, --udp-factory-reset, or --udp-json)"
+                "--ip requires a UDP command (--udp-on, --udp-off, --udp-set-brightness, --udp-get-brightness, --udp-set-color, --udp-get-adc, --udp-get-mac, --udp-set-factory-mode, --udp-get-factory-mode, --udp-get-software-version, --udp-set-colortemp, --udp-set-pwm, --udp-search-devices, --udp-reboot, --udp-factory-reset, --udp-json, or --udp-diagnose)"
             )
             sys.exit(2)
+
+    def handle_udp_diagnose(self):
+        """Run comprehensive diagnostic sweep of bulb capabilities and behavior."""
+        no_pause = getattr(self.args, "no_pause", False)
+        diag = Diagnostics(self.args.ip, no_pause)
+        diag.run_full_diagnostic()
 
     @staticmethod
     def send_reset_command(client: MQTTClient, mac: str) -> None:

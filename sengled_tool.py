@@ -581,7 +581,7 @@ def main():
         "--udp-set-pwm",
         nargs=4,
         metavar=("R", "G", "B", "W"),
-        help="Set PWM values via UDP (0-255 for each).",
+        help="Set PWM values via UDP (0-100 for each). NOTE: PWM mode is volatile (temporary preview), does NOT persist to flash. See docs for details.",
     )
     udp_group.add_argument(
         "--udp-search-devices", action="store_true", help="Search for devices via UDP."
@@ -596,6 +596,12 @@ def main():
         "--udp-json",
         help="Send a custom JSON payload via UDP. In bash: use single quotes. In CMD: escape quotes with backslashes.",
         type=lambda x: json.loads(x) if isinstance(x, str) else x
+    )
+    udp_group.add_argument(
+        "--udp-diagnose", action="store_true", help="Run comprehensive diagnostic sweep of bulb capabilities and behavior."
+    )
+    udp_group.add_argument(
+        "--no-pause", action="store_true", help="Run diagnostic without interactive pauses (for automation)."
     )
 
     control_group.add_argument("--topic", help="Custom MQTT topic to publish to.")

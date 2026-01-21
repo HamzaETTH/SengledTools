@@ -284,6 +284,26 @@ UDP Control (Local Network):
 ```
 
 
+## Diagnosing Bulb Issues
+
+If you're experiencing issues with your Sengled bulb (e.g., color mode detection problems, state syncing issues), use the built-in diagnostic tool:
+
+### Running Diagnostics
+
+```bash
+python sengled_tool.py --ip <bulb_ip> --udp-diagnose --nopause
+```
+
+For issues with Home-Assistant
+
+```bash
+python sengled_tool.py --ip <bulb_ip> --udp-diagnose
+```
+
+
+**Share the generated JSON file** when reporting issues - it contains everything needed to understand your bulb's behavior!
+
+
 ## FAQ
 
 <details>

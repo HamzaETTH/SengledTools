@@ -98,12 +98,99 @@ python sengled_tool.py --ip 192.168.0.196 --udp-json '{"func":"get_hardver","par
 
 ---
 
-## Notes
+## PWM Command Details
+
+### Hardware Architecture
+
+RGBW bulbs have **two separate LED systems**:
+- **RGB LEDs** (Red, Green, Blue) - controlled by `r`, `g`, `b` parameters
+- **Warm White LED** (separate chip) - controlled by `w` parameter
+
+```
+┌─────────────────────────────────────┐
+│        RGB LED Array          │  ← Red, Green, Blue LEDs
+│  (Cool white when mixed)      │
+├─────────────────────────────────────┤
+│    Warm White LED (W)         │  ← Separate warm white chip
+│  (Yellowish white light)        │
+└─────────────────────────────────────┘
+```
+
+### Parameter Ranges
+
+| Parameter | Range | Notes |
+|-----------|---------|--------|
+| `r` (red) | 0-100 | RGB red LED; 0-2 = OFF, >100 saturates |
+| `g` (green) | 0-100 | RGB green LED; 0-2 = OFF, >100 saturates |
+| `b` (blue) | 0-100 | RGB blue LED; 0-2 = OFF, >100 saturates |
+| `w` (warm white) | 0-100 | Warm white LED; 0-2 = OFF, >100 saturates |
+
+**Important:** Values >100 are clamped internally (no effect). Values 0-2 turn LEDs OFF (below threshold).
+
+### Color Mixing Guide
+
+| Color | R | G | B | W | Result |
+|--------|---|---|---|--------|
+| Pure Red | 100 | 0 | 0 | 0 | Red |
+| Pure Green | 0 | 100 | 0 | 0 | Green |
+| Pure Blue | 0 | 0 | 100 | 0 | Blue |
+| Warm White | 0 | 0 | 0 | 100 | Yellowish white (2700K-3000K) |
+| Cool White | 100 | 100 | 100 | 0 | Cool white (no tint) |
+| Neutral White | 80 | 80 | 80 | 100 | Mix of cool+warm white |
+| Orange | 100 | 50 | 0 | 0 | Red+Green |
+| Purple | 100 | 0 | 100 | 0 | Red+Blue |
+| Cyan | 0 | 100 | 100 | 0 | Green+Blue |
+| Green+White | 0 | 100 | 0 | 100 | Green with warm white boost |
+
+### Important Limitations
+
+#### 1. PWM Mode is Temporary (Volatile)
+- **PWM values do NOT persist** to flash memory
+- PWM is a "preview/test" mode - works until mode changes
+- Any stateful command exits PWM mode:
+  - `set_device_brightness`
+  - `set_device_color`
+  - `set_device_colortemp`
+  - `set_device_switch`
+- When mode exits, firmware reloads saved state (RGB or colortemp mode)
+
+#### 2. Brightness Reloads Saved State
+```bash
+# This sequence will NOT work as expected:
+python sengled_tool.py --ip <IP> --udp-json '{"func":"set_device_pwm","param":{"r":0,"g":100,"b":0,"w":100}}'  # PWM green+white
+python sengled_tool.py --ip <IP> --udp-set-brightness 50  # ← Exits PWM mode, reloads saved state
+```
+**Result:** Brightness change will exit PWM mode and display saved RGB/colortemp state, NOT PWM values.
+
+#### 3. State Query Cannot Read PWM
+```bash
+python sengled_tool.py --ip <IP> --udp-json '{"func":"search_devices","param":{}}'
+```
+`search_devices` returns cached RGB/colortemp values, **NOT current PWM state**. This is a protocol limitation.
+
+#### 4. For Persistent Color, Use RGB or Colortemp Mode
+
+**Recommended:**
+- Use `set_device_color` for RGB colors (persistent)
+- Use `set_device_colortemp` for white light (persistent)
+- Use `set_device_pwm` only for testing/preview (temporary)
+
+**Avoid:** Mixing PWM with other commands. Once you use PWM, avoid brightness/color/colortemp/switch commands to maintain the effect.
+
+### Comparison of Control Modes
+
+| Mode | Command | Persists? | `search_devices` Accurate? | Best For |
+|-------|---------|-------------|-------------------------|-----------|
+| RGB Mode | `set_device_color` | ✅ Yes | ✅ Yes | Pure RGB colors |
+| Colortemp Mode | `set_device_colortemp` | ✅ Yes | ✅ Yes | White light (2700K-6500K) |
+| PWM Mode | `set_device_pwm` | ❌ No | ❌ No | Testing/preview only |
+
+---
 
 - Default IP: `192.168.8.1` (bulb AP mode)
 - Port: `9080` (UDP)
 - Timeout: 3 seconds (fixed inside tool)
-- Color values: RGB 0-255
+- Color values: RGB 0-255 (see [PWM Command Details](#pwm-command-details) for PWM 0-100 range)
 - Brightness: 0-100
 
 ## Discovery (find bulbs on your LAN)
