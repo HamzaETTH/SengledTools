@@ -258,159 +258,162 @@ class SengledLight(LightEntity):
         return None
 
     def _update_state_from_status(
-        self, status: Dict[str, Any], brightness_info: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """Update internal state from device status."""
-        try:
-            # White-only bulbs: simpler state update
-            if self._is_rgb is False:
-                # Some white-only models (e.g. W21-N11) report a constant freq (like 8000)
-                # that does NOT map to on/off. Prefer get_device_brightness when available.
-                w_obj = status.get("W") or status.get("w") or {}
-                w_value = (w_obj or {}).get("value", 0)
-                w_freq = (w_obj or {}).get("freq")
+            self, status: Dict[str, Any], brightness_info: Optional[Dict[str, Any]] = None
+        ) -> None:
+            """Update internal state from device status."""
+            try:
+                # -------------------------------------------------------------------------
+                # PART 1: WHITE-ONLY BULBS (Unchanged to prevent regression)
+                # -------------------------------------------------------------------------
+                if self._is_rgb is False:
+                    w_obj = status.get("W") or status.get("w") or {}
+                    w_value = (w_obj or {}).get("value", 0)
+                    w_freq = (w_obj or {}).get("freq")
 
-                device_brightness_percent: int | None = None
-                if brightness_info and "brightness" in brightness_info:
-                    try:
-                        device_brightness_percent = int(brightness_info["brightness"])
-                    except (TypeError, ValueError):
-                        device_brightness_percent = None
+                    device_brightness_percent: int | None = None
+                    if brightness_info and "brightness" in brightness_info:
+                        try:
+                            device_brightness_percent = int(brightness_info["brightness"])
+                        except (TypeError, ValueError):
+                            device_brightness_percent = None
 
-                # Determine on/off robustly:
-                # - If freq explicitly reports 0, treat as on (older firmwares).
-                # - Else if we have brightness percent, brightness>0 => on.
-                # - Else fall back to W.value>0 (best-effort).
-                if w_freq == 0:
-                    self._is_on = True
-                elif device_brightness_percent is not None:
-                    # NOTE: some models keep reporting last brightness when switched off.
-                    # Only use brightness to force OFF (brightness==0). Never force ON.
-                    if device_brightness_percent == 0:
-                        self._is_on = False
-                    elif not self._optimistic_power:
+                    if w_freq == 0:
                         self._is_on = True
-                else:
-                    # W.value is typically 0-100 on white-only models
-                    try:
-                        w_percent = int(w_value)
-                    except (TypeError, ValueError):
-                        w_percent = None
-
-                    if w_percent == 0:
-                        self._is_on = False
-                    elif w_percent is not None and not self._optimistic_power:
-                        self._is_on = True
-                    elif w_percent is None and not self._optimistic_power:
-                        self._is_on = bool(w_value)
-
-                if device_brightness_percent is not None:
-                    self._brightness = min(
-                        255, max(0, int((device_brightness_percent / 100) * 255))
-                    )
-                else:
-                    # Fall back to W.value as 0-100 percent if it looks like it.
-                    try:
-                        w_percent2 = int(w_value)
-                    except (TypeError, ValueError):
-                        w_percent2 = None
-
-                    if w_percent2 is not None and 0 <= w_percent2 <= 100:
-                        self._brightness = min(255, max(0, int((w_percent2 / 100) * 255)))
+                    elif device_brightness_percent is not None:
+                        if device_brightness_percent == 0:
+                            self._is_on = False
+                        elif not self._optimistic_power:
+                            self._is_on = True
                     else:
-                        # Don't clobber last brightness if we couldn't parse.
-                        self._brightness = self._brightness if self._is_on else 0
+                        try:
+                            w_percent = int(w_value)
+                        except (TypeError, ValueError):
+                            w_percent = None
 
-                self._color_mode = ColorMode.BRIGHTNESS
+                        if w_percent == 0:
+                            self._is_on = False
+                        elif w_percent is not None and not self._optimistic_power:
+                            self._is_on = True
+                        elif w_percent is None and not self._optimistic_power:
+                            self._is_on = bool(w_value)
+
+                    if device_brightness_percent is not None:
+                        self._brightness = min(
+                            255, max(0, int((device_brightness_percent / 100) * 255))
+                        )
+                    else:
+                        try:
+                            w_percent2 = int(w_value)
+                        except (TypeError, ValueError):
+                            w_percent2 = None
+
+                        if w_percent2 is not None and 0 <= w_percent2 <= 100:
+                            self._brightness = min(255, max(0, int((w_percent2 / 100) * 255)))
+                        else:
+                            self._brightness = self._brightness if self._is_on else 0
+
+                    self._color_mode = ColorMode.BRIGHTNESS
+                    self._available = True
+                    _LOGGER.debug(
+                        "Updated white-only state: on=%s, brightness=%s, W=%s, freq=%s",
+                        self._is_on, self._brightness, w_value, w_freq
+                    )
+                    return
+
+                # -------------------------------------------------------------------------
+                # PART 2: RGB BULBS & STRIPS (Fixed for Hybrid White)
+                # -------------------------------------------------------------------------
+                r_raw = status.get("R", {}).get("value", 0)
+                g_raw = status.get("G", {}).get("value", 0)
+                b_raw = status.get("B", {}).get("value", 0)
+                w_raw = status.get("W", {}).get("value", 0)
+
+                r_freq = status.get("R", {}).get("freq", 1)
+                g_freq = status.get("G", {}).get("freq", 1)
+                b_freq = status.get("B", {}).get("freq", 1)
+                w_freq = status.get("W", {}).get("freq", 1)
+
+                # Device is on if any LED frequency is 0
+                self._is_on = any(freq == 0 for freq in [r_freq, g_freq, b_freq, w_freq])
+
+                if self._is_on:
+                    # FIX: If White channel is active (>0), we are in Color Temp mode.
+                    # Even if R/G/B are present (used for mixing/tinting), 
+                    # we must treat this as white to avoid "Ghost Colors" in Google Home.
+                    if w_raw > 0:
+                        self._color_mode = ColorMode.COLOR_TEMP
+                        
+                        # IMPORTANT: Clear RGB so HA/Google Home knows it's white
+                        self._rgb_color = None
+
+                        # Use raw values to estimate Kelvin. 
+                        # Normalize first to ensure math works on both 0-100 and 0-255 firmware scales.
+                        max_raw = max(r_raw, g_raw, b_raw, w_raw, 1)
+                        r_norm = int((r_raw / max_raw) * 255)
+                        g_norm = int((g_raw / max_raw) * 255)
+                        b_norm = int((b_raw / max_raw) * 255)
+                        w_norm = int((w_raw / max_raw) * 255)
+
+                        self._color_temp_kelvin = int(
+                            5 * r_norm
+                            - 9.6 * g_norm
+                            - 12.5 * b_norm
+                            + 7.4 * w_norm
+                            - 0.127 * r_norm**2
+                            + 0.136 * r_norm * w_norm
+                            + 0.277 * g_norm**2
+                            - 0.613 * g_norm * b_norm
+                            + 0.439 * g_norm * w_norm
+                            + 0.33 * b_norm**2
+                            - 0.216 * b_norm * w_norm
+                            - 0.113 * w_norm**2
+                            + 6245.18
+                        )
+                        # Clamp to valid range
+                        self._color_temp_kelvin = max(
+                            self._attr_min_color_temp_kelvin, 
+                            min(self._attr_max_color_temp_kelvin, self._color_temp_kelvin)
+                        )
+
+                    else:
+                        # RGB Mode (W is strictly 0)
+                        self._color_mode = ColorMode.RGB
+                        self._color_temp_kelvin = None
+                        
+                        # Normalize RGB only here for display purposes
+                        max_rgb = max(r_raw, g_raw, b_raw, 1)
+                        self._rgb_color = (
+                            int((r_raw / max_rgb) * 255),
+                            int((g_raw / max_rgb) * 255),
+                            int((b_raw / max_rgb) * 255),
+                        )
+
+                    # Brightness Handling
+                    if brightness_info and "brightness" in brightness_info:
+                        device_brightness = brightness_info["brightness"]
+                        # Convert percentage (0-100) to HA byte (0-255)
+                        self._brightness = min(255, int((device_brightness / 100) * 255))
+                    else:
+                        # Fallback: estimate from max channel value
+                        max_channel_value = max(r_raw, g_raw, b_raw, w_raw)
+                        # Handle firmware 0-100 scale vs 0-255 scale
+                        if max_channel_value > 100: 
+                            # Likely 0-255 scale
+                            self._brightness = max_channel_value
+                        else:
+                            # Likely 0-100 scale (like your strip)
+                            self._brightness = int((max_channel_value / 100) * 255)
+                else:
+                    self._brightness = 0
+
                 self._available = True
                 _LOGGER.debug(
-                    "Updated white-only state: on=%s, brightness=%s, W=%s, freq=%s",
-                    self._is_on, self._brightness, w_value, w_freq
+                    f"Updated state: on={self._is_on}, brightness={self._brightness}, mode={self._color_mode}, RGBWRaw=({r_raw},{g_raw},{b_raw},{w_raw})"
                 )
-                return
 
-            # RGB bulbs: full RGBW state update
-            r_value = status.get("R", {}).get("value", 0)
-            g_value = status.get("G", {}).get("value", 0)
-            b_value = status.get("B", {}).get("value", 0)
-            w_value = status.get("W", {}).get("value", 0)
-
-            r_freq = status.get("R", {}).get("freq", 1)
-            g_freq = status.get("G", {}).get("freq", 1)
-            b_freq = status.get("B", {}).get("freq", 1)
-            w_freq = status.get("W", {}).get("freq", 1)
-
-            # Device is on if any LED frequency is 0
-            self._is_on = any(freq == 0 for freq in [r_freq, g_freq, b_freq, w_freq])
-
-            # Normalize PWM values
-            max_pwm = max(r_value, g_value, b_value, w_value)
-            if max_pwm > 0:
-                r_value = int((r_value / max_pwm) * 255)
-                g_value = int((g_value / max_pwm) * 255)
-                b_value = int((b_value / max_pwm) * 255)
-                w_value = int((w_value / max_pwm) * 255)
-
-            if self._is_on:
-                # Check if W LED is active (non-zero value) for color temperature mode
-                if w_value > 0:
-                    self._color_mode = ColorMode.COLOR_TEMP
-
-                    # Estimate the color temperature in Kelvin
-                    self._color_temp_kelvin = (
-                        5 * r_value
-                        - 9.6 * g_value
-                        - 12.5 * b_value
-                        + 7.4 * w_value
-                        - 0.127 * r_value**2
-                        + 0.136 * r_value * w_value
-                        + 0.277 * g_value**2
-                        - 0.613 * g_value * b_value
-                        + 0.439 * g_value * w_value
-                        + 0.33 * b_value**2
-                        - 0.216 * b_value * w_value
-                        - 0.113 * w_value**2
-                        + 6245.18
-                    )
-                    self._rgb_color = None
-                else:
-                    # RGB color mode - W LED is not active
-                    self._color_mode = ColorMode.RGB
-
-                    self._rgb_color = (
-                        r_value,
-                        g_value,
-                        b_value,
-                    )
-                    self._color_temp_kelvin = None
-
-                # Get brightness from device response instead of estimating
-                if brightness_info and "brightness" in brightness_info:
-                    # Device returns brightness in 0-100 range, convert to 0-255
-                    device_brightness = brightness_info["brightness"]
-                    self._brightness = min(255, int((device_brightness / 100) * 255))
-                    _LOGGER.debug(
-                        f"Got brightness from device: {device_brightness}% -> {self._brightness}"
-                    )
-                else:
-                    # Fallback to estimation if brightness query failed
-                    max_channel_value = max(r_value, g_value, b_value, w_value)
-                    self._brightness = min(255, int((max_channel_value / 100) * 255))
-                    _LOGGER.debug(
-                        f"Estimated brightness from max channel value: {max_channel_value} -> {self._brightness}"
-                    )
-            else:
-                # Light is off - keep last known color mode and values
-                self._brightness = 0
-
-            self._available = True
-            _LOGGER.debug(
-                f"Updated state: on={self._is_on}, brightness={self._brightness}, mode={self._color_mode}, rgb={self._rgb_color}, temp_kelvin={self._color_temp_kelvin}, RGBW=({r_value},{g_value},{b_value},{w_value}), freq=({r_freq},{g_freq},{b_freq},{w_freq})"
-            )
-
-        except Exception as e:
-            _LOGGER.error(f"Error updating state from status: {e}")
-            self._available = False
+            except Exception as e:
+                _LOGGER.error(f"Error updating state from status: {e}")
+                self._available = False
 
     async def _send_command(
         self, func: str, param: Dict[str, Any]
