@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import socket
+import time  # <--- Added for debounce logic
 from typing import Any, Dict, Optional, Tuple
 
 from homeassistant.components.light import (
@@ -80,9 +81,12 @@ class SengledLight(LightEntity):
         self._rgb_color = (255, 255, 255)
         self._color_temp_kelvin = None
         
-        # NEW: Cache to store the requested Kelvin to prevent Math Drift
+        # Cache to store the requested Kelvin to prevent Math Drift
         self._req_kelvin = None 
         
+        # Debounce timer to prevent reading stale state immediately after a command
+        self._last_req_time = 0.0
+
         self._color_mode = ColorMode.RGB
         self._available = True
         self._optimistic_power = False
@@ -133,6 +137,11 @@ class SengledLight(LightEntity):
 
     async def async_update(self) -> None:
         """Fetch new state data for this light."""
+        # FIX: If we sent a command less than 2 seconds ago, skip this poll.
+        # This prevents reading "stale" data from the bulb before it has finished transitioning.
+        if (time.time() - self._last_req_time) < 2.0:
+            return
+
         status = await self._get_device_status()
         if status:
             if self._is_rgb is None:
@@ -158,6 +167,9 @@ class SengledLight(LightEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light."""
+        # FIX: Mark the time of this command to pause polling
+        self._last_req_time = time.time()
+
         # White-only bulbs
         if self._is_rgb is False:
             if ATTR_BRIGHTNESS in kwargs:
@@ -217,6 +229,9 @@ class SengledLight(LightEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the light."""
+        # FIX: Mark the time of this command to pause polling
+        self._last_req_time = time.time()
+        
         await self._send_command("set_device_switch", {"switch": 0})
         self._is_on = False
         self.async_write_ha_state()
@@ -319,7 +334,7 @@ class SengledLight(LightEntity):
                     if self._req_kelvin is not None:
                          self._color_temp_kelvin = self._req_kelvin
                     else:
-                        # Fallback Math (only if we have no cache, e.g. after HA restart)
+                        # Fallback Math
                         max_raw = max(r_raw, g_raw, b_raw, w_raw, 1)
                         r_norm = int((r_raw / max_raw) * 255)
                         g_norm = int((g_raw / max_raw) * 255)
