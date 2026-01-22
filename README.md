@@ -95,6 +95,14 @@ The bulb will accept the update and reboot. It may flash different colors and wi
 
 The **flashing process** has been tested with **W31-N15 and W31-N11** bulbs, which use Sengled's WF863 module (based on ESP8266EX). **Other bulbs appear to use other modules** (like WF864, based on MX1290 chip), which may not work with the flashing process. Basic MQTT/UDP control works on most, if not all, Sengled Wi-Fi bulbs, even when flashing is not supported.
 
+### Flashing Troubleshooting
+
+**"Write blocked (overlaps running slot)" error**
+
+Some bulbs boot from the `ota_0` partition by default instead of `ota_1`, which blocks flashing. The Sengled-Rescue UI will show "write blocked (overlaps running slot)" and the Flash button will be greyed out.
+
+**Fix:** Use the **"Relocate to ota_1"** option in the Sengled-Rescue UI. This will copy `ota_0` to `ota_1`, mark it as active, and reboot the bulb. Once it reboots and you reconnect to the Sengled-Rescue WiFi, the Flash button will be enabled and you can proceed with flashing your custom firmware (Tasmota/ESPHome/WLED) as normal.
+
 ### Currently Known Working Bulbs ✅
 
 > [!IMPORTANT]
