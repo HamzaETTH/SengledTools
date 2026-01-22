@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import socket
-import time  # <--- Added for debounce logic
+import time 
 from typing import Any, Dict, Optional, Tuple
 
 from homeassistant.components.light import (
@@ -137,8 +137,6 @@ class SengledLight(LightEntity):
 
     async def async_update(self) -> None:
         """Fetch new state data for this light."""
-        # FIX: If we sent a command less than 2 seconds ago, skip this poll.
-        # This prevents reading "stale" data from the bulb before it has finished transitioning.
         if (time.time() - self._last_req_time) < 2.0:
             return
 
@@ -167,7 +165,6 @@ class SengledLight(LightEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light."""
-        # FIX: Mark the time of this command to pause polling
         self._last_req_time = time.time()
 
         # White-only bulbs
@@ -191,7 +188,6 @@ class SengledLight(LightEntity):
             await self._send_command(
                 "set_device_colortemp", {"colorTemperature": device_temp}
             )
-            # FIX: Save the requested Kelvin so we don't rely on bad math later
             self._color_temp_kelvin = color_temp_kelvin
             self._req_kelvin = color_temp_kelvin
             
@@ -229,7 +225,6 @@ class SengledLight(LightEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the light."""
-        # FIX: Mark the time of this command to pause polling
         self._last_req_time = time.time()
         
         await self._send_command("set_device_switch", {"switch": 0})
@@ -330,7 +325,6 @@ class SengledLight(LightEntity):
                     self._color_mode = ColorMode.COLOR_TEMP
                     self._rgb_color = None
 
-                    # FIX: Use cached request if available to prevent math drift/jitter
                     if self._req_kelvin is not None:
                          self._color_temp_kelvin = self._req_kelvin
                     else:
