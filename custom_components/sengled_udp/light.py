@@ -81,8 +81,10 @@ class SengledLight(LightEntity):
         self._attr_rgb_color = (255, 255, 255)
         self._attr_color_temp_kelvin = None
 
-        # Cache to store the requested Kelvin to prevent Math Drift
+        # --- CACHES FOR STABILITY ---
         self._req_kelvin = None
+        self._req_rgb = None
+        # ----------------------------
 
         # Debounce timer to prevent reading stale state immediately after a command
         self._last_req_time = 0.0
@@ -169,7 +171,6 @@ class SengledLight(LightEntity):
         device_temp = None
         rgb = None
 
-        # White-only bulbs and RGB bulbs
         # Handle brightness
         if ATTR_BRIGHTNESS in kwargs:
             brightness = kwargs[ATTR_BRIGHTNESS]
@@ -181,19 +182,27 @@ class SengledLight(LightEntity):
             if ATTR_COLOR_TEMP_KELVIN in kwargs:
                 color_temp_kelvin = kwargs[ATTR_COLOR_TEMP_KELVIN]
                 device_temp = self._kelvin_to_device_temp(color_temp_kelvin)
+                
+                # Update attributes
                 self._attr_color_temp_kelvin = color_temp_kelvin
-                self._req_kelvin = color_temp_kelvin
                 self._attr_color_mode = ColorMode.COLOR_TEMP
                 self._attr_rgb_color = None
+                
+                # Update caches
+                self._req_kelvin = color_temp_kelvin
+                self._req_rgb = None
 
             # Handle RGB color
             elif ATTR_RGB_COLOR in kwargs:
                 rgb = kwargs[ATTR_RGB_COLOR]
+                
+                # Update attributes
                 self._attr_rgb_color = rgb
                 self._attr_color_mode = ColorMode.RGB
-
-                # Reset Kelvin cache since we are now in RGB mode
                 self._attr_color_temp_kelvin = None
+
+                # Update caches
+                self._req_rgb = rgb
                 self._req_kelvin = None
 
         # Update local state before sending commands
@@ -324,6 +333,7 @@ class SengledLight(LightEntity):
                     self._attr_color_mode = ColorMode.COLOR_TEMP
                     self._attr_rgb_color = None
 
+                    # Use cached request if available to prevent math drift/jitter
                     if self._req_kelvin is not None:
                         self._attr_color_temp_kelvin = self._req_kelvin
                     else:
@@ -358,14 +368,18 @@ class SengledLight(LightEntity):
                     # RGB Mode (W is strictly 0)
                     self._attr_color_mode = ColorMode.RGB
                     self._attr_color_temp_kelvin = None
-                    self._req_kelvin = None # Clear kelvin cache
+                    self._req_kelvin = None 
 
-                    max_rgb = max(r_raw, g_raw, b_raw, 1)
-                    self._attr_rgb_color = (
-                        int((r_raw / max_rgb) * 255),
-                        int((g_raw / max_rgb) * 255),
-                        int((b_raw / max_rgb) * 255),
-                    )
+                    # Use cached request if values are zeroed out by dimness
+                    if self._req_rgb is not None:
+                        self._attr_rgb_color = self._req_rgb
+                    else:
+                        max_rgb = max(r_raw, g_raw, b_raw, 1)
+                        self._attr_rgb_color = (
+                            int((r_raw / max_rgb) * 255),
+                            int((g_raw / max_rgb) * 255),
+                            int((b_raw / max_rgb) * 255),
+                        )
 
                 # Brightness
                 if brightness_info and "brightness" in brightness_info:
