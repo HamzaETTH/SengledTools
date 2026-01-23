@@ -299,13 +299,13 @@ If you're experiencing issues with your Sengled bulb (e.g., color mode detection
 ### Running Diagnostics
 
 ```bash
-python sengled_tool.py --ip <bulb_ip> --udp-diagnose --nopause
+python sengled_tool.py --ip <bulb_ip> --diagnose --nopause
 ```
 
 For issues with Home-Assistant
 
 ```bash
-python sengled_tool.py --ip <bulb_ip> --udp-diagnose
+python sengled_tool.py --ip <bulb_ip> --diagnose
 ```
 
 

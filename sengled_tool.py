@@ -598,7 +598,7 @@ def main():
         type=lambda x: json.loads(x) if isinstance(x, str) else x
     )
     udp_group.add_argument(
-        "--udp-diagnose", action="store_true", help="Run comprehensive diagnostic sweep of bulb capabilities and behavior."
+        "--diagnose", action="store_true", help="Run comprehensive diagnostic sweep of bulb capabilities and behavior."
     )
     udp_group.add_argument(
         "--no-pause", action="store_true", help="Run diagnostic without interactive pauses (for automation)."

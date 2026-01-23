@@ -199,7 +199,7 @@ class CommandHandler:
             self.handle_udp_diagnose()
         else:
             warn(
-                "--ip requires a UDP command (--udp-on, --udp-off, --udp-set-brightness, --udp-get-brightness, --udp-set-color, --udp-get-adc, --udp-get-mac, --udp-set-factory-mode, --udp-get-factory-mode, --udp-get-software-version, --udp-set-colortemp, --udp-set-pwm, --udp-search-devices, --udp-reboot, --udp-factory-reset, --udp-json, or --udp-diagnose)"
+                "--ip requires a UDP command (--udp-on, --udp-off, --udp-set-brightness, --udp-get-brightness, --udp-set-color, --udp-get-adc, --udp-get-mac, --udp-set-factory-mode, --udp-get-factory-mode, --udp-get-software-version, --udp-set-colortemp, --udp-set-pwm, --udp-search-devices, --udp-reboot, --udp-factory-reset, --udp-json, or --diagnose)"
             )
             sys.exit(2)
 

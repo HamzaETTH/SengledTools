@@ -13,3 +13,6 @@ __pycache__/
 
 # local-only tools and artifacts
 extras/
+
+# diagnostic JSON files
+*diagnostic*.json
