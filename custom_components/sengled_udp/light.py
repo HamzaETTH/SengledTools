@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 import json
 import logging
 import socket
@@ -15,6 +16,9 @@ from homeassistant.components.light import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.storage import Store
+
+from .conversion import calculate, is_likely_match, smart_reverse, unscale_sengled_value_by_brightness
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,11 +60,18 @@ async def async_setup_entry(
 
     async_add_entities(entities)
 
+@dataclasses.dataclass
+class LightCache:
+    brightness: int | None
+    rgb: tuple[int, int, int] | None
+    color_temp_kelvin: int | None
 
 class SengledLight(LightEntity):
     """Representation of a Sengled UDP Light."""
 
     _attr_force_update = True
+    _storage: Store[dict[str, Any]] | None
+    _cache: LightCache | None
 
     def __init__(
             self,
@@ -80,11 +91,6 @@ class SengledLight(LightEntity):
         self._attr_brightness = 255
         self._attr_rgb_color = (255, 255, 255)
         self._attr_color_temp_kelvin = None
-
-        # --- CACHES FOR STABILITY ---
-        self._req_kelvin = None
-        self._req_rgb = None
-        # ----------------------------
 
         # Debounce timer to prevent reading stale state immediately after a command
         self._last_req_time = 0.0
@@ -117,6 +123,14 @@ class SengledLight(LightEntity):
         self._attr_min_color_temp_kelvin = 2000
         self._attr_max_color_temp_kelvin = 6500
 
+    async def async_added_to_hass(self) -> None:
+        self._storage = Store(
+            hass = self.hass,
+            version=1,
+            key=self.unique_id,
+        )
+        await self._load_cache()
+
     @property
     def is_on(self) -> bool:
         return self._attr_is_on
@@ -142,12 +156,20 @@ class SengledLight(LightEntity):
         if (time.time() - self._last_req_time) < 2.0:
             return
 
+        # Probably not necessary since we're currently only saving cache from
+        # this function as well.
+        await self._load_cache()
+
         status = await self._get_device_status()
         if status:
             if self._is_rgb is None:
                 self._detect_capabilities(status)
             brightness_info = await self._get_device_brightness()
-            self._update_state_from_status(status, brightness_info)
+            await self._update_state_from_status(status, brightness_info)
+        else:
+            self._attr_brightness = self._cache.brightness
+            self._attr_color_temp_kelvin = self._cache.color_temp_kelvin
+            self._attr_rgb_color = self._cache.rgb
 
     def _detect_capabilities(self, status: Dict[str, Any]) -> None:
         has_rgb = "R" in status and "G" in status and "B" in status
@@ -182,28 +204,28 @@ class SengledLight(LightEntity):
             if ATTR_COLOR_TEMP_KELVIN in kwargs:
                 color_temp_kelvin = kwargs[ATTR_COLOR_TEMP_KELVIN]
                 device_temp = self._kelvin_to_device_temp(color_temp_kelvin)
-                
+
                 # Update attributes
                 self._attr_color_temp_kelvin = color_temp_kelvin
                 self._attr_color_mode = ColorMode.COLOR_TEMP
                 self._attr_rgb_color = None
-                
+
                 # Update caches
-                self._req_kelvin = color_temp_kelvin
-                self._req_rgb = None
+                self._cache.color_temp_kelvin = color_temp_kelvin
+                self._cache.rgb = None
 
             # Handle RGB color
             elif ATTR_RGB_COLOR in kwargs:
                 rgb = kwargs[ATTR_RGB_COLOR]
-                
+
                 # Update attributes
                 self._attr_rgb_color = rgb
                 self._attr_color_mode = ColorMode.RGB
                 self._attr_color_temp_kelvin = None
 
                 # Update caches
-                self._req_rgb = rgb
-                self._req_kelvin = None
+                self._cache.rgb = rgb
+                self._cache.color_temp_kelvin = None
 
         # Update local state before sending commands
         self._attr_is_on = True
@@ -229,6 +251,7 @@ class SengledLight(LightEntity):
             await self._send_command("set_device_switch", {"switch": 1})
 
         self.async_write_ha_state()
+        await self._save_cache()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the light."""
@@ -255,8 +278,10 @@ class SengledLight(LightEntity):
                 return result
         return None
 
-    def _update_state_from_status(
-            self, status: Dict[str, Any], brightness_info: Optional[Dict[str, Any]] = None
+    async def _update_state_from_status(
+            self,
+            status: Dict[str, Any],
+            brightness_info: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Update internal state from device status."""
         try:
@@ -305,8 +330,11 @@ class SengledLight(LightEntity):
                         w_percent2 = None
                     if w_percent2 is not None and 0 <= w_percent2 <= 100:
                         self._attr_brightness = min(255, max(0, int((w_percent2 / 100) * 255)))
-                    else:
-                        self._attr_brightness = self._attr_brightness if self._attr_is_on else 0
+
+                if self._cache.brightness is not None:
+                    # Probably within calculation error, use cached value
+                    if abs(self._cache.brightness - self._attr_brightness) < 3:
+                        self._attr_brightness = self._cache.brightness
 
                 self._attr_color_mode = ColorMode.BRIGHTNESS
                 self._available = True
@@ -334,8 +362,8 @@ class SengledLight(LightEntity):
                     self._attr_rgb_color = None
 
                     # Use cached request if available to prevent math drift/jitter
-                    if self._req_kelvin is not None:
-                        self._attr_color_temp_kelvin = self._req_kelvin
+                    if self._cache.color_temp_kelvin is not None:
+                        self._attr_color_temp_kelvin = self._cache.color_temp_kelvin
                     else:
                         # Fallback Math
                         max_raw = max(r_raw, g_raw, b_raw, w_raw, 1)
@@ -368,33 +396,52 @@ class SengledLight(LightEntity):
                     # RGB Mode (W is strictly 0)
                     self._attr_color_mode = ColorMode.RGB
                     self._attr_color_temp_kelvin = None
-                    self._req_kelvin = None 
+
+                    # Brightness
+                    if brightness_info and "brightness" in brightness_info:
+                        device_brightness = brightness_info["brightness"]
+                        self._attr_brightness = min(255, int((device_brightness / 100) * 255))
+                    else:
+                        max_channel_value = max(r_raw, g_raw, b_raw, w_raw)
+                        if max_channel_value > 100:
+                            self._attr_brightness = max_channel_value
+                        else:
+                            self._attr_brightness = int((max_channel_value / 100) * 255)
+
+                    if self._cache.brightness is not None:
+                        # Probably within calculation error, use cached value
+                        if abs(self._cache.brightness - self._attr_brightness) < 3:
+                            self._attr_brightness = self._cache.brightness
+
+                    brightness_factor = self._attr_brightness / 255
 
                     # Use cached request if values are zeroed out by dimness
-                    if self._req_rgb is not None:
-                        self._attr_rgb_color = self._req_rgb
-                    else:
-                        max_rgb = max(r_raw, g_raw, b_raw, 1)
-                        self._attr_rgb_color = (
-                            int((r_raw / max_rgb) * 255),
-                            int((g_raw / max_rgb) * 255),
-                            int((b_raw / max_rgb) * 255),
+                    if self._cache.rgb is not None:
+                        cached_as_udp = calculate(*self._cache.rgb)
+                        likely_match = is_likely_match(
+                            calculated_sengled_value=cached_as_udp,
+                            api_sengled_value=unscale_sengled_value_by_brightness(
+                                (r_raw, g_raw, b_raw),
+                                brightness_factor,
+                            ),
                         )
 
-                # Brightness
-                if brightness_info and "brightness" in brightness_info:
-                    device_brightness = brightness_info["brightness"]
-                    self._attr_brightness = min(255, int((device_brightness / 100) * 255))
-                else:
-                    max_channel_value = max(r_raw, g_raw, b_raw, w_raw)
-                    if max_channel_value > 100:
-                        self._attr_brightness = max_channel_value
+                        if likely_match:
+                            self._attr_rgb_color = self._cache.rgb
+                        else:
+                            self._attr_rgb_color = smart_reverse(*unscale_sengled_value_by_brightness(
+                                (r_raw, g_raw, b_raw),
+                                brightness_factor,
+                            ))
                     else:
-                        self._attr_brightness = int((max_channel_value / 100) * 255)
-            else:
-                self._attr_brightness = 0
+                        self._attr_rgb_color = smart_reverse(*unscale_sengled_value_by_brightness(
+                            (r_raw, g_raw, b_raw),
+                            brightness_factor,
+                        ))
 
             self._available = True
+
+            await self._save_cache()
 
         except Exception as e:
             _LOGGER.error(f"Error updating state from status: {e}")
@@ -430,6 +477,16 @@ class SengledLight(LightEntity):
         except Exception:
             return None
 
-    def _kelvin_to_device_temp(self, kelvin: int) -> int:
+    @staticmethod
+    def _kelvin_to_device_temp(kelvin: int) -> int:
         device_temp = int(1 + ((kelvin - 2000) / (6500 - 2000)) * 99)
         return max(1, min(100, device_temp))
+
+    async def _load_cache(self):
+        self._cache = LightCache(**await self._storage.async_load())
+
+    async def _save_cache(self):
+        self._cache.brightness = self._attr_brightness
+        self._cache.rgb = self._attr_rgb_color
+        self._cache.color_temp_kelvin = self._attr_color_temp_kelvin
+        await self._storage.async_save(dataclasses.asdict(self._cache))
