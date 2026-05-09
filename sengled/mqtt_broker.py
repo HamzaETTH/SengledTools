@@ -34,10 +34,97 @@ def generate_certificates(cert_dir: Path, force_regenerate: bool = False):
     server_key_path = cert_dir / "server.key"
     server_cert_path = cert_dir / "server.crt"
     
-    # Check if all files exist
+    # Check if all files exist; if they do, ensure cert SAN still matches current LAN IP.
     if not force_regenerate and all(p.exists() for p in [ca_key_path, ca_cert_path, server_key_path, server_cert_path]):
-        debug("Certificates already exist, skipping generation")
-        return ca_cert_path, server_cert_path, server_key_path
+        try:
+            with open(server_cert_path, "rb") as f:
+                cert = x509.load_pem_x509_certificate(f.read())
+
+            current_ip = get_local_ip()
+            san_ext = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+            san_ips = {str(ip) for ip in san_ext.value.get_values_for_type(x509.IPAddress)}
+
+            if current_ip in san_ips:
+                debug("Certificates already exist, skipping generation")
+                return ca_cert_path, server_cert_path, server_key_path
+
+            info(
+                f"Current LAN IP {current_ip} is not in existing server certificate SAN. Regenerating server certificate."
+            )
+
+            # Preserve the existing CA so already-paired bulbs can keep trusting this broker.
+            with open(ca_key_path, "rb") as f:
+                ca_private_key = serialization.load_pem_private_key(f.read(), password=None)
+            with open(ca_cert_path, "rb") as f:
+                ca_cert = x509.load_pem_x509_certificate(f.read())
+
+            server_private_key = rsa.generate_private_key(
+                public_exponent=65537,
+                key_size=2048,
+            )
+
+            server_subject = x509.Name([
+                x509.NameAttribute(NameOID.COMMON_NAME, "broker.local"),
+            ])
+
+            server_cert = x509.CertificateBuilder().subject_name(
+                server_subject
+            ).issuer_name(
+                ca_cert.subject
+            ).public_key(
+                server_private_key.public_key()
+            ).serial_number(
+                x509.random_serial_number()
+            ).not_valid_before(
+                datetime.utcnow()
+            ).not_valid_after(
+                datetime.utcnow() + timedelta(days=3650)
+            ).add_extension(
+                x509.BasicConstraints(ca=False, path_length=None), critical=True
+            ).add_extension(
+                x509.SubjectAlternativeName([
+                    x509.DNSName("broker.local"),
+                    x509.IPAddress(ip_address("127.0.0.1")),
+                    x509.IPAddress(ip_address("0.0.0.0")),
+                    x509.IPAddress(ip_address(current_ip)),
+                ]), critical=False
+            ).add_extension(
+                x509.KeyUsage(
+                    digital_signature=True,
+                    key_encipherment=True,
+                    key_agreement=False,
+                    key_cert_sign=False,
+                    crl_sign=False,
+                    content_commitment=False,
+                    data_encipherment=False,
+                    encipher_only=False,
+                    decipher_only=False
+                ), critical=True
+            ).add_extension(
+                x509.ExtendedKeyUsage([
+                    x509.oid.ExtendedKeyUsageOID.SERVER_AUTH,
+                ]), critical=False
+            ).add_extension(
+                x509.SubjectKeyIdentifier.from_public_key(server_private_key.public_key()), critical=False
+            ).add_extension(
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_private_key.public_key()), critical=False
+            ).sign(ca_private_key, hashes.SHA256())
+
+            with open(server_key_path, "wb") as f:
+                f.write(server_private_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption()
+                ))
+
+            with open(server_cert_path, "wb") as f:
+                f.write(server_cert.public_bytes(serialization.Encoding.PEM))
+
+            success(f"Updated server certificate in {cert_dir}")
+            return ca_cert_path, server_cert_path, server_key_path
+        except Exception:
+            # If parsing fails, regenerate to recover from stale/corrupt certificate files.
+            warn("Could not validate existing certificates, regenerating.")
     
     waiting("Generating TLS certificates (this may take a few seconds)...")
     
@@ -158,13 +245,39 @@ def _no_client_auth_create_ssl_context(self, listener):
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(listener["certfile"], listener["keyfile"])
     ctx.verify_mode = ssl.CERT_NONE
+    # Force TLS 1.2 only — ESP8266 mbedtls in AWS IoT C SDK only speaks TLS 1.2.
     try:
-        ctx.set_ciphers("ECDHE-RSA-AES256-GCM-SHA384")
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        ctx.maximum_version = ssl.TLSVersion.TLSv1_2
     except Exception:
         pass
+    # Lower OpenSSL security level so weaker ESP8266 ciphers + smaller keys are accepted.
+    # Allow the broad cipher set the AWS IoT C SDK / mbedtls actually supports.
+    try:
+        ctx.set_ciphers(
+            "DEFAULT:@SECLEVEL=0:"
+            "ECDHE-RSA-AES128-GCM-SHA256:"
+            "ECDHE-RSA-AES256-GCM-SHA384:"
+            "ECDHE-RSA-AES128-SHA256:"
+            "ECDHE-RSA-AES256-SHA384:"
+            "AES128-GCM-SHA256:AES256-GCM-SHA384:"
+            "AES128-SHA256:AES256-SHA256:"
+            "AES128-SHA:AES256-SHA"
+        )
+    except ssl.SSLError:
+        try:
+            ctx.set_ciphers("DEFAULT@SECLEVEL=0")
+        except Exception:
+            pass
     try:
         ctx.set_ecdh_curve("prime256v1")
     except Exception:
+        pass
+    # Sengled stock firmware uses the AWS IoT C SDK which advertises the
+    # "x-amzn-mqtt-ca" ALPN. Servers that ignore it cause handshake failure.
+    try:
+        ctx.set_alpn_protocols(["x-amzn-mqtt-ca", "mqtt"])
+    except (NotImplementedError, AttributeError):
         pass
     return ctx
 
