@@ -71,7 +71,7 @@ Follow the prompts — when asked, switch your PC to the bulb's Wi‑Fi (`Sengle
 ## Flashing information
 
 > [!CAUTION]
-> **Flashing firmware carries risk of permanently bricking your bulb.** Only proceed if you understand and accept this risk. The flashing process has been tested with specific bulb models (W31-N15, W31-N11), but other models may not be compatible.
+> **Flashing firmware carries risk of permanently bricking your bulb.** Only proceed if you understand and accept this risk. The flashing process has been tested with specific bulb models, but other models may not be compatible.
 
 It is possible to reflash compatible Sengled bulbs (see compatibility list) with open-source firmware like [Tasmota](https://tasmota.github.io/), ESPHome, or [WLED](https://kno.wled.ge/). The process to download an arbitrary firmware involves using a "shim" app known as Sengled-Rescue, which is located in the sengled-ota folder of the project. A compiled version of Sengled-Rescue is located at `firmware/shim.bin`.
 
