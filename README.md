@@ -110,6 +110,7 @@ Some bulbs boot from the `ota_0` partition by default instead of `ota_1`, which 
 
 * **W31-N15** (WiFi multi-color LED) - WF863 Module / Espressif ESP8266EX chip
 * **W31-N11** (WiFi multi-color LED) - WF863 Module
+* **W21-U23** (WiFi multi-color LED) - Espressif ESP8266EX chip
 
 ### Currently Known NON-Working Bulbs ❌
 
