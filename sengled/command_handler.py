@@ -195,15 +195,15 @@ class CommandHandler:
             except json.JSONDecodeError:
                 warn("Invalid JSON for --udp-json")
                 sys.exit(2)
-        elif self.args.udp_diagnose:
-            self.handle_udp_diagnose()
+        elif self.args.diagnose:
+            self.handle_diagnose()
         else:
             warn(
                 "--ip requires a UDP command (--udp-on, --udp-off, --udp-set-brightness, --udp-get-brightness, --udp-set-color, --udp-get-adc, --udp-get-mac, --udp-set-factory-mode, --udp-get-factory-mode, --udp-get-software-version, --udp-set-colortemp, --udp-set-pwm, --udp-search-devices, --udp-reboot, --udp-factory-reset, --udp-json, or --diagnose)"
             )
             sys.exit(2)
 
-    def handle_udp_diagnose(self):
+    def handle_diagnose(self):
         """Run comprehensive diagnostic sweep of bulb capabilities and behavior."""
         no_pause = getattr(self.args, "no_pause", False)
         diag = Diagnostics(self.args.ip, no_pause)
