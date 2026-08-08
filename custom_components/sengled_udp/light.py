@@ -150,7 +150,7 @@ class SengledLight(LightEntity):
             self._update_state_from_status(status, brightness_info)
 
     def _detect_capabilities(self, status: Dict[str, Any]) -> None:
-        has_rgb = "R" in status and "G" in status and "B" in status
+        has_rgb = (all(k in status or k.lower() in status in status for k in ("R", "G", "B")))
         self._is_rgb = has_rgb
 
         if has_rgb:
@@ -315,15 +315,17 @@ class SengledLight(LightEntity):
             # -------------------------------------------------------------------------
             # PART 2: RGB BULBS & STRIPS
             # -------------------------------------------------------------------------
-            r_raw = status.get("R", {}).get("value", 0)
-            g_raw = status.get("G", {}).get("value", 0)
-            b_raw = status.get("B", {}).get("value", 0)
-            w_raw = status.get("W", {}).get("value", 0)
+            normalized_status = {k.upper(): v for k, v in status.items()}
 
-            r_freq = status.get("R", {}).get("freq", 1)
-            g_freq = status.get("G", {}).get("freq", 1)
-            b_freq = status.get("B", {}).get("freq", 1)
-            w_freq = status.get("W", {}).get("freq", 1)
+            r_raw = normalized_status.get("R", {}).get("value", 0)
+            g_raw = normalized_status.get("G", {}).get("value", 0)
+            b_raw = normalized_status.get("B", {}).get("value", 0)
+            w_raw = normalized_status.get("W", {}).get("value", 0)
+
+            r_freq = normalized_status.get("R", {}).get("freq", 1)
+            g_freq = normalized_status.get("G", {}).get("freq", 1)
+            b_freq = normalized_status.get("B", {}).get("freq", 1)
+            w_freq = normalized_status.get("W", {}).get("freq", 1)
 
             self._attr_is_on = any(freq == 0 for freq in [r_freq, g_freq, b_freq, w_freq])
 

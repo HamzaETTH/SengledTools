@@ -260,7 +260,7 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 try:
                     resp = await self._send_udp(host, "search_devices", {})
                     if resp and isinstance(resp, dict) and resp.get("ret") == 0:
-                        typ = "rgb" if all(k in resp for k in ("R", "G", "B")) else "white"
+                        typ = "rgb" if all(k in resp or k.lower() in resp for k in ("R", "G", "B")) else "white"
                 except Exception:
                     typ = None
 
@@ -330,7 +330,7 @@ class SengledConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 resp = await self._send_udp(host, "search_devices", {})
                 if resp and isinstance(resp, dict) and resp.get("ret") == 0:
                     # White bulbs typically only report W, RGB bulbs report R/G/B/W
-                    is_rgb = all(k in resp for k in ("R", "G", "B"))
+                    is_rgb = all(k in resp or k.lower() in resp for k in ("R", "G", "B"))
                     typ = "rgb" if is_rgb else "white"
                     model = extract_model(resp)
                     return typ, model

@@ -247,9 +247,9 @@ class Diagnostics:
             device_info["search_devices_sample"] = sd_data
 
         # Check for RGBW based on presence of R, G, B keys
-        has_r = "R" in sd_data
-        has_g = "G" in sd_data
-        has_b = "B" in sd_data
+        has_r = "R" in sd_data or "r" in sd_data
+        has_g = "G" in sd_data or "g" in sd_data
+        has_b = "B" in sd_data or "b" in sd_data
         is_rgbw = has_r and has_g and has_b
 
         self.report["device_info"] = device_info
