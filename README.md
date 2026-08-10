@@ -107,6 +107,8 @@ Some bulbs boot from the `ota_0` partition by default instead of `ota_1`, which 
 
 > [!IMPORTANT]
 > **Flashing only works with ESP8266EX-based modules** (WF863). Other modules like WF864 (MX1290 chip) or EMW3091 are not flashable via this method, though basic MQTT/UDP control still works.
+>
+> For reference: the **MXCHIP MX1290 is a rebadged Realtek RTL8710BN** (LibreTiny lists `MX1290` → `RTL8710BN` and `MX1290V2` → `RTL8710BX`). The Sengled-Rescue OTA shim is ESP8266-only, so these modules stay unflashable *by the method in this repo*. They are in principle reachable over **UART** with `ltchiptool` / LibreTiny (`realtek-ambz`) — untested on WF864, noted only as a lead for anyone wanting to try.
 
 * **W31-N15** (WiFi multi-color LED) - WF863 Module / Espressif ESP8266EX chip
 * **W31-N11** (WiFi multi-color LED) - WF863 Module
@@ -114,7 +116,7 @@ Some bulbs boot from the `ota_0` partition by default instead of `ota_1`, which 
 
 ### Currently Known NON-Working Bulbs ❌
 
-* **W12-N15** (WiFi white LED) - WF864 module / MXCHIP MX1290 chip
+* **W12-N15** (WiFi multi-color LED) - WF864 module (silkscreened `WF864SM-M6`, FCC ID `2AGN8-WF864`) / MXCHIP MX1290 chip
 * **W21-N13** and **W11-N13** (WiFi multi-color LED) - MXCHIP EMW3091 module / unknown chip
 
 
@@ -328,6 +330,34 @@ Check the following:
  - Your firewall isn't blocking the connections
 
 **Troubleshooting step:** Visit `http://yourlocalIP:57542/jbalancer/new/bimqtt` from another device on the same network. If it returns text, network is OK. If not, fix network settings first.
+</details>
+
+<details>
+
+<summary>The bulb accepts my Wi-Fi credentials but never gets an IP — it drops off after ~15s and goes back to its own AP.</summary>
+
+> [!IMPORTANT]
+> If your DHCP server is configured to **force broadcast** DHCP replies, RTL8710BN-based bulbs (WF864 / MX1290) will never take a lease.
+
+Symptoms, in order:
+
+- The bulb **associates fine** and the WPA2 4-way handshake completes (so the Wi-Fi password is correct)
+- Your DHCP server logs a repeating `DHCPDISCOVER` → `DHCPOFFER` loop with **no `DHCPREQUEST` and no `DHCPACK`**
+- After roughly 15 seconds the bulb gives up, disconnects, and re-opens its own `Sengled_Wi-Fi Bulb_XXXXXX` AP
+
+**Cause:** these bulbs send their `DHCPDISCOVER` with the BOOTP **broadcast flag clear** (`0x0000`), i.e. they ask for a **unicast** reply — and they *mean* it. If the server answers with a broadcast OFFER anyway, the bulb silently discards it and never progresses.
+
+**Fix:** make sure your DHCP server honours the client's broadcast flag rather than forcing broadcast for everyone. On `dnsmasq`, an unconditional `dhcp-broadcast` does exactly this; scope it to only the clients that need it instead:
+
+```
+# instead of a bare "dhcp-broadcast" (applies to every client):
+dhcp-broadcast=tag:needs-broadcast
+```
+
+then tag only the specific devices that genuinely require broadcast replies. Confirm the fix by watching for `DHCPREQUEST` followed by `DHCPACK` in the server log.
+
+*(Forced-broadcast is an uncommon, deliberate setting — usually added to help Wi-Fi clients whose APs buffer unicast frames during power save — so most users will never hit this. It's worth checking if a bulb associates but never appears on the network.)*
+
 </details>
 
 <details>
