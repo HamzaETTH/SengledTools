@@ -8,6 +8,7 @@ Handles the complete setup flow:
   • Listening for bulb attributes via MQTT
 """
 
+import getpass
 import json
 import time
 import socket
@@ -21,7 +22,7 @@ from sengled.utils import get_mac_address
 
 from sengled.utils import get_local_ip, save_bulb
 from sengled.crypto import encrypt_wifi_payload, decrypt_wifi_payload
-from sengled.log import say, step, info, warn as warn_, debug, section, subsection, success, waiting, get_indent, set_indent, is_verbose, cmd
+from sengled.log import say, step, info, warn_ as warn_, debug, section, subsection, success, waiting, get_indent, set_indent, is_verbose, cmd
 from sengled.http_server import SetupHTTPServer
 from sengled.mqtt_broker import EmbeddedBroker, BROKER_TLS_PORT
 from sengled.mqtt_client import MQTTClient, create_mqtt_client
@@ -319,14 +320,12 @@ def run_wifi_setup(
 							# Prompt slightly less indented than items
 							_si(_base + 6)
 							info("")
-							prompt_shown = False
 							while True:
 								# Keep prompting until valid selection or explicit rescan
 								try:
 									prompt_range = f"(1-{len(routers)})" if len(routers) > 0 else "(none)"
-									prompt_text = f"      Select network {prompt_range} or 0 to rescan: " if not prompt_shown else ""
+									prompt_text = f"      Select network {prompt_range} or 0 to rescan: "
 									choice_input = input(prompt_text).strip()
-									prompt_shown = True
 								except KeyboardInterrupt:
 									raise
 								if choice_input == "0":
@@ -335,6 +334,7 @@ def run_wifi_setup(
 								try:
 									choice = int(choice_input or "-1")
 								except ValueError:
+									warn_(f"{choice_input} is not a valid entry between 0 and {len(routers)}")
 									# Invalid input; re-prompt without rescanning
 									continue
 								if 1 <= choice <= len(routers):
@@ -345,6 +345,8 @@ def run_wifi_setup(
 									info(f"Selected network: {wifi_ssid}")
 									# Exit both prompt loop and scan loop
 									break
+								else:
+									warn_(f"{choice} is not a valid entry between 0 and {len(routers)}")
 							# If we got here, user asked to rescan; restart outer loop
 							if choice_input == "0":
 								continue
@@ -353,7 +355,7 @@ def run_wifi_setup(
 								break
 
 						# Get password interactively
-						wifi_pass = input(f"        Password for '{wifi_ssid}': ").strip()
+						wifi_pass = getpass.getpass(f"        Password for '{wifi_ssid}' (input hidden for security): ").strip()
 
 					else:
 						# Non-interactive path
