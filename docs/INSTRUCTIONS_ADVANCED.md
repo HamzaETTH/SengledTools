@@ -159,15 +159,16 @@ The Wi-Fi pairing process involves a complex sequence of UDP commands and HTTP r
 
 ### Pairing Sequence
 
-1. **UDP Handshake**: The tool sends `startConfigRequest` to the bulb (192.168.8.1:9080)
+1. **UDP Handshake**: The tool sends `startConfigRequest` to the bulb (192.168.8.1:9080) and records its protocol
 2. **WiFi Scan**: Optional network scanning via `scanWifiRequest` and `getAPListRequest`
-3. **Configuration**: Encrypted parameters sent via `setParamsRequest` (RC4 + Base64)
+3. **Configuration**: Parameters sent via `setParamsRequest` using the negotiated plaintext or RC4 + Base64 format
 4. **HTTP Setup**: Bulb connects to local server for cloud access simulation
 5. **MQTT Connection**: Bulb receives broker details and establishes connection
 
 ### Technical Details
 
-- **Encryption**: All sensitive data uses RC4 encryption with `KEY_STR` constant
+- **Encryption**: Protocol `0` uses plaintext JSON; other negotiated protocols use RC4 encryption with the `KEY_STR` constant
+- **WIG-N84 retry**: If an encrypted request receives the exact transient `function not find` response, the tool refreshes the setup session and retries once
 - **Ports**: HTTP server starts on port 80, falls back to 8080; MQTT uses 8883 (TLS)
 - **Endpoints**: Bulb expects specific JSON responses from `/life2/device/accessCloud.json` and `/jbalancer/new/bimqtt`
 

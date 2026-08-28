@@ -15,7 +15,7 @@ sequenceDiagram
     UserPC->>SetupTool: "Run --setup-wifi (--ssid --password)"
     SetupTool->>HttpServer: "Start server (port 80 → 8080 fallback)"
     SetupTool->>BulbAP: "UDP startConfigRequest"
-    BulbAP-->>SetupTool: "Handshake + MAC"
+    BulbAP-->>SetupTool: "Handshake + MAC + protocol"
 
     opt "Interactive scan"
         SetupTool->>BulbAP: "scanWifiRequest"
@@ -26,9 +26,9 @@ sequenceDiagram
 
     SetupTool->>BulbAP: "UDP startConfigRequest (prep)"
     BulbAP-->>SetupTool: "result:true"
-    SetupTool->>BulbAP: "setParamsRequest [RC4+Base64 encrypted]"
+    SetupTool->>BulbAP: "setParamsRequest [negotiated wire format]"
     Note right of SetupTool: "Includes appServerDomain and jbalancerDomain URLs\n+ Wi‑Fi SSID/password (or BSSID)"
-    Note over SetupTool,BulbAP: Payload is RC4-encrypted and then base64-encoded (see KEY_STR in code)
+    Note over SetupTool,BulbAP: Protocol 0 uses plaintext JSON; other protocols use RC4 + Base64
     BulbAP-->>SetupTool: "ack"
     SetupTool->>BulbAP: "endConfigRequest"
 
@@ -43,7 +43,8 @@ sequenceDiagram
 
 ## Key Details
 
-- **Encryption**: All sensitive data (Wi-Fi credentials, server URLs) is RC4-encrypted with `KEY_STR` and then base64-encoded
+- **Encryption**: Protocol `0` sends plaintext JSON. Other negotiated protocols RC4-encrypt sensitive data with `KEY_STR`, then base64-encode it.
+- **WIG-N84 retry**: This firmware can transiently return `function not find` for a valid encrypted `setParamsRequest`. The tool refreshes the handshake, waits three seconds, and retries the same encrypted request once. It does not retry timeouts or other errors.
 - **HTTP Endpoints**: The bulb expects specific JSON responses from `/life2/device/accessCloud.json` and `/jbalancer/new/bimqtt`
 - **Port Fallback**: HTTP server starts on port 80, falls back to 8080 if needed
 - **MQTT Port**: Default MQTT broker connection uses port 8883 (TLS)

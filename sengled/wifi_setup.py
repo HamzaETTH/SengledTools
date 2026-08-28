@@ -173,6 +173,13 @@ def run_wifi_setup(
 					s.sendto(json.dumps(start_req).encode("utf-8"), (BULB_IP, BULB_PORT))
 					data, _ = s.recvfrom(4096)
 					handshake_resp = json.loads(data.decode("utf-8"))
+					handshake_protocol = handshake_resp.get("payload", {}).get("protocol")
+					try:
+						negotiated_protocol = int(handshake_protocol)
+					except (TypeError, ValueError):
+						# Preserve the tool's historical encrypted behavior when older devices omit negotiation.
+						negotiated_protocol = 1
+					debug(f"Negotiated Wi-Fi setup protocol: {negotiated_protocol}")
 
 					if "mac" not in handshake_resp.get("payload", {}) and getattr(args, 'mac', None):
 						say("MAC address not provided by bulb, using command line option --mac")
@@ -234,7 +241,7 @@ def run_wifi_setup(
 									info(
 										"If you are running a custom broker, use the --broker-ip and --broker-port arguments."
 									)
-									return None, None
+									return None, None, None
 
 					if setup_server and setup_server.active:
 						info("HTTP server is already running (this session).")
@@ -385,6 +392,12 @@ def run_wifi_setup(
 					if not re_handshake_resp.get("payload", {}).get("result"):
 						warn_("Configuration prep failed")
 						return None, None, None
+					re_handshake_protocol = re_handshake_resp.get("payload", {}).get("protocol")
+					if re_handshake_protocol is not None:
+						try:
+							negotiated_protocol = int(re_handshake_protocol)
+						except (TypeError, ValueError):
+							pass
 
 					# Configure Network
 					config_step = "[5/6]" if interactive else "[3/4]"
@@ -417,39 +430,70 @@ def run_wifi_setup(
 						},
 					}
 
+					# The app follows the device's negotiated protocol; protocol 0 strips require plaintext JSON.
+					if negotiated_protocol == 0:
+						params_wire_data = json.dumps(params_payload).encode("utf-8")
+						wire_format = "plaintext"
+					else:
+						params_wire_data = encrypt_wifi_payload(params_payload).encode("utf-8")
+						wire_format = "encrypted"
 					if interactive:
-						debug(f"Sending unencrypted payload:\n{json.dumps(params_payload, indent=2)}")
-
-					encrypted_params = encrypt_wifi_payload(params_payload)
-					s.sendto(encrypted_params.encode("utf-8"), (BULB_IP, BULB_PORT))
-
-					try:
-						data, _ = s.recvfrom(4096)
-						response_str = data.decode("utf-8")
-						if interactive:
-							debug(f"Received raw response from bulb:\n{response_str}")
+						debug(f"Sending setParamsRequest using {wire_format} protocol for SSID {wifi_ssid!r}")
+					for params_attempt in range(2):
+						s.sendto(params_wire_data, (BULB_IP, BULB_PORT))
 
 						try:
-							# First, try to parse as JSON (plaintext response)
-							# We handle both cases for maximum compatibility
-							response_json = json.loads(response_str)
+							data, _ = s.recvfrom(4096)
+							response_str = data.decode("utf-8")
 							if interactive:
-								debug("Parsed response as plaintext JSON.")
-							if response_json.get("payload", {}).get("result") is not True:
+								debug(f"Received raw response from bulb:\n{response_str}")
+
+							try:
+								# First, try to parse as JSON (plaintext response)
+								# We handle both cases for maximum compatibility
+								response_json = json.loads(response_str)
+								if interactive:
+									debug("Parsed response as plaintext JSON.")
+								if response_json.get("payload", {}).get("result") is True:
+									break
+
+								error_result = response_json.get("result", {})
+								function_not_found = (
+									isinstance(error_result, dict)
+									and error_result.get("ret") == 1
+									and error_result.get("msg") == "function not find"
+								)
+								if params_attempt == 0 and wire_format == "encrypted" and function_not_found:
+									# WIG-N84 firmware can transiently reject a valid encrypted request.
+									debug("Bulb did not recognize setParamsRequest; refreshing the setup session and retrying once.")
+									try:
+										s.sendto(json.dumps(start_req).encode("utf-8"), (BULB_IP, BULB_PORT))
+										data, _ = s.recvfrom(4096)
+										retry_handshake_resp = json.loads(data.decode("utf-8"))
+									except (json.JSONDecodeError, socket.timeout):
+										warn_("Configuration retry prep failed")
+										return None, None, None
+									if not retry_handshake_resp.get("payload", {}).get("result"):
+										warn_("Configuration retry prep failed")
+										return None, None, None
+									time.sleep(3)
+									continue
+
 								warn_("Bulb rejected credentials (plaintext error).")
-								return None, None
-						except json.JSONDecodeError:
-							# If JSON parsing fails, assume it's encrypted
-							if interactive:
-								debug("Could not parse as JSON, attempting decryption...")
-							decrypted_resp = decrypt_wifi_payload(response_str)
-							if interactive:
-								debug(f"Decrypted response:\n{json.dumps(decrypted_resp, indent=2)}")
-							if not isinstance(decrypted_resp, dict) or not decrypted_resp.get("payload", {}).get("result"):
-								warn_("Bulb rejected credentials (decryption failed).")
-								return None, None
-					except socket.timeout:
-						pass  # Timeout is expected here
+								return None, None, None
+							except json.JSONDecodeError:
+								# If JSON parsing fails, assume it's encrypted
+								if interactive:
+									debug("Could not parse as JSON, attempting decryption...")
+								decrypted_resp = decrypt_wifi_payload(response_str)
+								if interactive:
+									debug(f"Decrypted response:\n{json.dumps(decrypted_resp, indent=2)}")
+								if not isinstance(decrypted_resp, dict) or not decrypted_resp.get("payload", {}).get("result"):
+									warn_("Bulb rejected credentials (decryption failed).")
+									return None, None, None
+								break
+						except socket.timeout:
+							break  # Timeout is expected here
 
 					success("Wi-Fi credentials accepted by bulb", extra_indent=6)
 
@@ -605,5 +649,4 @@ def run_wifi_setup(
 				pass
 		warn_(f"Setup failed: {e}")
 		return None, None, None
-
 
