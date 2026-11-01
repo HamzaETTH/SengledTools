@@ -478,14 +478,31 @@ def run_wifi_setup(
 					if is_verbose():
 						info("Expected endpoints: /life2/device/accessCloud.json and /jbalancer/new/bimqtt")
 					
-					if not using_external_http_server:
+					# The bulb reports to whichever host was baked into its setup URLs.
+					# That is this machine only when --http-server-ip was not used, so
+					# verification has to follow the same host and port the bulb was given.
+					remote_http_host = getattr(args, "http_server_ip", None)
+					if remote_http_host:
+						status_url = f"http://{remote_http_host}:{preferred_http_port}/status"
+						info(f"Checking {status_url} until both endpoints are hit…")
+						both_hit, client_ip = _poll_status_until_both_hit(
+							status_url, total_timeout_sec=180.0, interval_sec=1.0
+						)
+						if not both_hit:
+							warn_(
+								f"No confirmation from {status_url}. If that host is not running a "
+								"Sengled setup server, pairing may still have succeeded — check "
+								"whether the bulb reached your MQTT broker."
+							)
+					elif using_external_http_server:
+						status_url = f"http://127.0.0.1:{preferred_http_port}/status"
+						info(f"Checking {status_url} until both endpoints are hit…")
+						both_hit, client_ip = _poll_status_until_both_hit(
+							status_url, total_timeout_sec=180.0, interval_sec=1.0
+						)
+					else:
 						both_hit = setup_server.wait_until_both_endpoints_hit(timeout_seconds=180)
 						client_ip = setup_server.last_client_ip
-					else:
-						info("Checking external server /status until both endpoints are hit…")
-						both_hit, client_ip = _poll_status_until_both_hit(
-							"http://127.0.0.1:57542/status", total_timeout_sec=180.0, interval_sec=1.0
-						)
 
 					# Initialize support_info regardless of path, so it's always defined
 					support_info = None
